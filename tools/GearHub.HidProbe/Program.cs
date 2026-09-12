@@ -3,8 +3,211 @@ using GearHub.Providers.Windows.Logitech;
 
 Console.OutputEncoding = Encoding.UTF8;
 
+if (args.Contains("--live"))
+{
+    Console.WriteLine("=== LIVE 40s: двигай мышь и стучи по клавиатуре! ===");
+    var liveTransports = HidppTransport.FindAll().ToList();
+    var stop = DateTimeOffset.UtcNow.AddSeconds(40);
+    var startAt = DateTimeOffset.UtcNow;
+    var buffer = new byte[64];
+    var ask = 0;
+
+    while (DateTimeOffset.UtcNow < stop)
+    {
+        foreach (var transport in liveTransports)
+        {
+            var seconds = (int)(DateTimeOffset.UtcNow - startAt).TotalSeconds;
+            var shortName = transport.DevicePath.Contains("c52b", StringComparison.OrdinalIgnoreCase) ? "C52B"
+                : transport.DevicePath.Contains("c548", StringComparison.OrdinalIgnoreCase) ? "C548"
+                : transport.ProductName;
+
+            var request = ask % 2 == 0
+                ? HidppCodec.BuildShortRequest(1, 0x00, 0x00, 0x0B, 0x10, 0x04)
+                : RegisterRequest(1, 0x810D);
+
+            foreach (var reply in transport.CollectReplies(request, TimeSpan.FromMilliseconds(250), 6))
+            {
+                Console.WriteLine($"[{seconds,3}s] {shortName} ASK#{ask} -> {Convert.ToHexString(reply)}");
+            }
+
+            while (transport.TryReadRaw(buffer, TimeSpan.FromMilliseconds(60), out var passive))
+            {
+                Console.WriteLine($"[{seconds,3}s] {shortName} PASSIVE {Convert.ToHexString(passive)}");
+            }
+        }
+
+        ask++;
+    }
+
+    Console.WriteLine("=== LIVE закончен ===");
+    return;
+}
+
 Console.WriteLine("=== Интерфейсы HID++ (usage 0xFF00/0x0001) ===");
 var transports = HidppTransport.FindAll();
+
+Console.WriteLine();
+Console.WriteLine("=== Коллекции приёмников: usages и открытие ===");
+
+foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
+{
+    try
+    {
+        var descriptor = device.GetReportDescriptor();
+        var usages = new List<string>();
+
+        foreach (var item in descriptor.DeviceItems)
+        {
+            foreach (var value in item.Usages.GetAllValues())
+            {
+                usages.Add($"{value >> 16:X4}:{value & 0xFFFF:X4}");
+            }
+        }
+
+        var product = string.Empty;
+        try
+        {
+            product = device.GetProductName() ?? string.Empty;
+        }
+        catch
+        {
+        }
+
+        var opened = device.TryOpen(out var probeStream);
+        probeStream?.Dispose();
+
+        Console.WriteLine($"- {product} in={device.GetMaxInputReportLength()} out={device.GetMaxOutputReportLength()} open={opened}");
+        Console.WriteLine($"  {device.DevicePath}");
+        Console.WriteLine($"  usages: {string.Join(", ", usages.Distinct())}");
+    }
+    catch
+    {
+    }
+}
+
+Console.WriteLine();
+Console.WriteLine("=== Матрица длинных каналов приёмников: короткий и длинный запросы ===");
+
+foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
+{
+    try
+    {
+        var descriptor = device.GetReportDescriptor();
+        var vendorUsages = new List<int>();
+
+        foreach (var item in descriptor.DeviceItems)
+        {
+            foreach (var value in item.Usages.GetAllValues())
+            {
+                if ((value >> 16) == 0xFF00)
+                {
+                    vendorUsages.Add((int)(value & 0xFFFF));
+                }
+            }
+        }
+
+        if (vendorUsages.Count == 0 || vendorUsages.All(usage => usage == 0x0001))
+        {
+            continue;
+        }
+
+        var tag = device.DevicePath;
+        var pidIndex = tag.IndexOf("pid_", StringComparison.OrdinalIgnoreCase);
+        tag = pidIndex >= 0 && tag.Length >= pidIndex + 8 ? tag.Substring(pidIndex + 4, 4) : tag;
+
+        if (!device.TryOpen(out var channel))
+        {
+            Console.WriteLine($"- pid={tag} usages={string.Join(",", vendorUsages.Select(usage => usage.ToString("X4")))}: ОТКРЫТЬ НЕ УДАЛОСЬ");
+            continue;
+        }
+
+        channel.ReadTimeout = 120;
+        var outLength = device.GetMaxOutputReportLength();
+
+        Console.WriteLine($"- pid={tag} usages={string.Join(",", vendorUsages.Select(usage => usage.ToString("X4")))} out={outLength}");
+        ProbeChannel("короткий 0x10 getFeature", [0x10, 0x01, 0x00, 0x0B, 0x10, 0x04, 0x00]);
+        ProbeChannel("короткий 0x10 reg 0x0D", [0x10, 0x01, 0x81, 0x0D, 0x00, 0x00, 0x00]);
+        ProbeChannel("длинный 0x11/20 getFeature", PadFrame([0x11, 0x01, 0x00, 0x0B, 0x10, 0x04, 0x00], 20));
+        ProbeChannel("длинный 0x11/20 reg 0x0D", PadFrame([0x11, 0x01, 0x81, 0x0D, 0x00, 0x00, 0x00], 20));
+
+        if (outLength > 20)
+        {
+            ProbeChannel($"длинный 0x11/{outLength} getFeature", PadFrame([0x11, 0x01, 0x00, 0x0B, 0x10, 0x04, 0x00], outLength));
+        }
+
+        channel.Dispose();
+
+        void ProbeChannel(string label, byte[] request)
+        {
+            DrainAll(channel);
+            var collected = new List<string>();
+
+            try
+            {
+                channel.Write(request);
+            }
+            catch (Exception error)
+            {
+                Console.WriteLine($"    {label}: запись не удалась ({error.GetType().Name})");
+                return;
+            }
+
+            var until = DateTimeOffset.UtcNow.AddMilliseconds(1800);
+            var buffer = new byte[64];
+
+            while (DateTimeOffset.UtcNow < until)
+            {
+                try
+                {
+                    var count = channel.Read(buffer, 0, buffer.Length);
+                    if (count > 0)
+                    {
+                        collected.Add(Convert.ToHexString(buffer.AsSpan(0, count)));
+                    }
+                }
+                catch (TimeoutException)
+                {
+                }
+                catch
+                {
+                    break;
+                }
+            }
+
+            Console.WriteLine($"    {label}: {(collected.Count == 0 ? "нет ответа" : string.Join(" | ", collected))}");
+        }
+
+        static void DrainAll(HidSharp.HidStream channelToDrain)
+        {
+            var scratch = new byte[64];
+
+            while (true)
+            {
+                try
+                {
+                    if (channelToDrain.Read(scratch, 0, scratch.Length) <= 0)
+                    {
+                        return;
+                    }
+                }
+                catch
+                {
+                    return;
+                }
+            }
+        }
+
+        static byte[] PadFrame(byte[] frame, int length)
+        {
+            var padded = new byte[length];
+            Array.Copy(frame, padded, Math.Min(frame.Length, length));
+            return padded;
+        }
+    }
+    catch
+    {
+    }
+}
 
 if (transports.Count == 0)
 {

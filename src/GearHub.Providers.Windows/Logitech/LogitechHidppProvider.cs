@@ -163,6 +163,8 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
         if (ShouldAttempt("battery:" + key, now, BatteryReadInterval))
         {
             var probe = ReadBattery(live);
+            live.LastProbeAnswered = probe.Answered;
+
             if (probe.Battery.IsAvailable)
             {
                 live.Battery = probe.Battery;
@@ -228,6 +230,14 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
         if (live.BatteryDetail is not null)
         {
             parts.Add(live.BatteryDetail);
+        }
+        else if (live.LastProbeAnswered == false)
+        {
+            parts.Add("устройство спит");
+        }
+        else if (live.LastProbeAnswered == true && !live.Battery.IsAvailable)
+        {
+            parts.Add("заряд не читается");
         }
 
         if (live.Wpid is not null)
@@ -465,7 +475,8 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
             return new BatteryProbe(
                 new BatteryReading { Percent = HidppCodec.EstimatePercentFromMillivolts(millivolts) },
                 HasFault: false,
-                $"≈ по напряжению ({millivolts} мВ)");
+                $"≈ по напряжению ({millivolts} мВ)",
+                Answered: true);
         }
 
         return null; // HID++ 2.0 недоступен: старое устройство или устройство спит.
@@ -494,7 +505,8 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
                 IsCharging = charging,
             },
             chargingStatus == 3,
-            suffix is null ? detail : $"{detail} ({suffix})");
+            suffix is null ? detail : $"{detail} ({suffix})",
+            Answered: true);
     }
 
     private static BatteryProbe ParseBatteryStatus(byte[] reply, string? suffix)
@@ -514,51 +526,63 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
         return new BatteryProbe(
             new BatteryReading { Percent = Math.Min(reply[0], (byte)100), IsCharging = charging },
             status is 5 or 6,
-            suffix is null ? detail : $"{detail} ({suffix})");
+            suffix is null ? detail : $"{detail} ({suffix})",
+            Answered: true);
     }
 
     /// <summary>HID++ 1.0: регистр 0x0D (точный процент) и 0x07 (огрублённый уровень).</summary>
     private static BatteryProbe ReadViaRegisters(HidppTransport transport, byte deviceIndex)
     {
-        if (transport.TryExchange(ReadRegister(deviceIndex, 0x0D), deviceIndex, RequestTimeout, out var chargeReply)
-            && TryParseRegisterData(chargeReply, out var chargeData)
-            && chargeData.Length >= 1
-            && chargeData[0] is > 0 and <= 100)
+        var answered = false;
+
+        if (transport.TryExchange(ReadRegister(deviceIndex, 0x0D), deviceIndex, RequestTimeout, out var chargeReply))
         {
-            var statusByte = chargeData.Length > 2 ? (byte)(chargeData[2] & 0xF0) : (byte)0;
-            var charging = statusByte is 0x50 or 0x90;
+            answered = true;
 
-            return new BatteryProbe(
-                new BatteryReading { Percent = chargeData[0], IsCharging = charging },
-                HasFault: false,
-                charging ? "Заряжается" : "≈ по данным устройства");
-        }
-
-        if (transport.TryExchange(ReadRegister(deviceIndex, 0x07), deviceIndex, RequestTimeout, out var statusReply)
-            && TryParseRegisterData(statusReply, out var statusData)
-            && statusData.Length >= 2)
-        {
-            var coarse = statusData[0] switch
+            if (TryParseRegisterData(chargeReply, out var chargeData)
+                && chargeData.Length >= 1
+                && chargeData[0] is > 0 and <= 100)
             {
-                7 => CoarseBatteryLevel.Full,
-                5 => CoarseBatteryLevel.High,
-                3 => CoarseBatteryLevel.Low,
-                1 => CoarseBatteryLevel.Empty,
-                _ => CoarseBatteryLevel.Unknown,
-            };
-
-            if (coarse != CoarseBatteryLevel.Unknown)
-            {
-                var charging = (statusData[1] & 0x21) == 0x21 || (statusData[1] & 0x22) == 0x22;
+                var statusByte = chargeData.Length > 2 ? (byte)(chargeData[2] & 0xF0) : (byte)0;
+                var charging = statusByte is 0x50 or 0x90;
 
                 return new BatteryProbe(
-                    new BatteryReading { Coarse = coarse, IsCharging = charging },
+                    new BatteryReading { Percent = chargeData[0], IsCharging = charging },
                     HasFault: false,
-                    charging ? "Заряжается" : "≈ по данным устройства");
+                    charging ? "Заряжается" : "≈ по данным устройства",
+                    Answered: true);
             }
         }
 
-        return BatteryProbe.NotSupported;
+        if (transport.TryExchange(ReadRegister(deviceIndex, 0x07), deviceIndex, RequestTimeout, out var statusReply))
+        {
+            answered = true;
+
+            if (TryParseRegisterData(statusReply, out var statusData) && statusData.Length >= 2)
+            {
+                var coarse = statusData[0] switch
+                {
+                    7 => CoarseBatteryLevel.Full,
+                    5 => CoarseBatteryLevel.High,
+                    3 => CoarseBatteryLevel.Low,
+                    1 => CoarseBatteryLevel.Empty,
+                    _ => CoarseBatteryLevel.Unknown,
+                };
+
+                if (coarse != CoarseBatteryLevel.Unknown)
+                {
+                    var charging = (statusData[1] & 0x21) == 0x21 || (statusData[1] & 0x22) == 0x22;
+
+                    return new BatteryProbe(
+                        new BatteryReading { Coarse = coarse, IsCharging = charging },
+                        HasFault: false,
+                        charging ? "Заряжается" : "≈ по данным устройства",
+                        Answered: true);
+                }
+            }
+        }
+
+        return new BatteryProbe(BatteryReading.Unknown, HasFault: false, Detail: null, Answered: answered);
     }
 
     private static string? TryReadName(HidppTransport transport, byte deviceIndex)
@@ -773,6 +797,8 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
         public bool NotificationsEnabled { get; set; }
 
+        public bool? LastProbeAnswered { get; set; }
+
         public byte? UnifiedBatteryFeature { get; set; }
 
         public byte? BatteryStatusFeature { get; set; }
@@ -786,10 +812,10 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
         public DateTimeOffset LastEventUtc { get; set; } = DateTimeOffset.UtcNow;
     }
 
-    private readonly record struct BatteryProbe(BatteryReading Battery, bool HasFault, string? Detail)
+    private readonly record struct BatteryProbe(BatteryReading Battery, bool HasFault, string? Detail, bool Answered = false)
     {
-        public static BatteryProbe NotSupported { get; } = new(BatteryReading.Unknown, HasFault: false, Detail: null);
+        public static BatteryProbe NotSupported { get; } = new(BatteryReading.Unknown, HasFault: false, Detail: null, Answered: false);
 
-        public static BatteryProbe Faulted(string detail) => new(BatteryReading.Unknown, HasFault: true, detail);
+        public static BatteryProbe Faulted(string detail) => new(BatteryReading.Unknown, HasFault: true, detail, Answered: true);
     }
 }
