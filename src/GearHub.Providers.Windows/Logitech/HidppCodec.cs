@@ -12,6 +12,15 @@ public readonly record struct HidppResponse(
     byte ErrorCode,
     byte[] Parameters);
 
+/// <summary>Ответ устройства за приёмником (длинный канал). Кадр ошибки: [0xFF, feature, func_sw, ошибка].</summary>
+public readonly record struct HidppDeviceReply(
+    byte DeviceIndex,
+    byte FeatureIndex,
+    byte FunctionByte,
+    bool IsError,
+    byte ErrorCode,
+    byte[] Payload);
+
 /// <summary>Низкоуровневые детали протокола HID++ 2.0: сборка запросов, разбор ответов, оценка заряда.</summary>
 public static class HidppCodec
 {
@@ -43,6 +52,75 @@ public static class HidppCodec
         parameter1,
         parameter2,
     ];
+
+    /// <summary>SoftwareId как в Solaar: старший бит установлен, чтобы отличать ответы от нотификаций (swId = 0).</summary>
+    public const byte SolaarSoftwareId = 0x0B;
+
+    /// <summary>
+    /// Длинный запрос: 20 байт, до 16 параметров. Устройства за приёмниками Unifying/Bolt
+    /// отвечают только на длинные кадры 0x11, отправленные в коллекцию usage 0xFF00/0x0002.
+    /// </summary>
+    public static byte[] BuildLongRequest(
+        byte deviceIndex,
+        byte featureIndex,
+        byte functionId,
+        byte softwareId,
+        params byte[] parameters)
+    {
+        var frame = new byte[LongReportLength];
+        frame[0] = ReportIdLong;
+        frame[1] = deviceIndex;
+        frame[2] = featureIndex;
+        frame[3] = (byte)((functionId << 4) | softwareId);
+
+        var count = Math.Min(parameters.Length, frame.Length - 4);
+        Array.Copy(parameters, 0, frame, 4, count);
+        return frame;
+    }
+
+    /// <summary>Разбирает ответ устройства (успешный или кадр ошибки 0xFF).</summary>
+    public static bool TryParseDeviceReply(ReadOnlySpan<byte> report, out HidppDeviceReply reply)
+    {
+        reply = default;
+
+        if (report.Length < 5)
+        {
+            return false;
+        }
+
+        var reportId = report[0];
+        if (reportId is not (ReportIdShort or ReportIdLong))
+        {
+            return false;
+        }
+
+        if (report[2] == ErrorFeatureIndex)
+        {
+            // Ошибка HID++ 2.0: [report, devIdx, 0xFF, feature, func_sw, error, ...].
+            if (report.Length < 6)
+            {
+                return false;
+            }
+
+            reply = new HidppDeviceReply(
+                DeviceIndex: report[1],
+                FeatureIndex: report[3],
+                FunctionByte: report[4],
+                IsError: true,
+                ErrorCode: report[5],
+                Payload: report[6..].ToArray());
+            return true;
+        }
+
+        reply = new HidppDeviceReply(
+            DeviceIndex: report[1],
+            FeatureIndex: report[2],
+            FunctionByte: report[3],
+            IsError: false,
+            ErrorCode: 0,
+            Payload: report[4..].ToArray());
+        return true;
+    }
 
     public static bool TryParseResponse(ReadOnlySpan<byte> report, out HidppResponse response)
     {

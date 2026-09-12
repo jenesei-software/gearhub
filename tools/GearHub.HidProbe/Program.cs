@@ -125,19 +125,46 @@ foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
         var outLength = device.GetMaxOutputReportLength();
 
         Console.WriteLine($"- pid={tag} usages={string.Join(",", vendorUsages.Select(usage => usage.ToString("X4")))} out={outLength}");
-        ProbeChannel("короткий 0x10 getFeature", [0x10, 0x01, 0x00, 0x0B, 0x10, 0x04, 0x00]);
-        ProbeChannel("короткий 0x10 reg 0x0D", [0x10, 0x01, 0x81, 0x0D, 0x00, 0x00, 0x00]);
-        ProbeChannel("длинный 0x11/20 getFeature", PadFrame([0x11, 0x01, 0x00, 0x0B, 0x10, 0x04, 0x00], 20));
-        ProbeChannel("длинный 0x11/20 reg 0x0D", PadFrame([0x11, 0x01, 0x81, 0x0D, 0x00, 0x00, 0x00], 20));
+        ProbeChannel("ping", PadFrame([0x11, 0x01, 0x00, 0x1B, 0x00, 0x00, 0xA5], 20));
+        var unified = ProbeChannel("getFeature 0x1004 (unified battery)", PadFrame([0x11, 0x01, 0x00, 0x0B, 0x10, 0x04, 0x00], 20));
+        var legacy = ProbeChannel("getFeature 0x1000 (battery)", PadFrame([0x11, 0x01, 0x00, 0x0B, 0x10, 0x00, 0x00], 20));
+        ProbeChannel("getFeature 0x1001 (battery voltage)", PadFrame([0x11, 0x01, 0x00, 0x0B, 0x10, 0x01, 0x00], 20));
+        ProbeChannel("getFeature 0x0005 (device name)", PadFrame([0x11, 0x01, 0x00, 0x0B, 0x00, 0x05, 0x00], 20));
+        ProbeChannel("getFeature 0x1814 (change host)", PadFrame([0x11, 0x01, 0x00, 0x0B, 0x18, 0x14, 0x00], 20));
 
-        if (outLength > 20)
-        {
-            ProbeChannel($"длинный 0x11/{outLength} getFeature", PadFrame([0x11, 0x01, 0x00, 0x0B, 0x10, 0x04, 0x00], outLength));
-        }
+        ProbeBatteryAt(unified, "0x1004");
+        ProbeBatteryAt(legacy, "0x1000");
 
         channel.Dispose();
 
-        void ProbeChannel(string label, byte[] request)
+        void ProbeBatteryAt(List<string> featureReply, string featureName)
+        {
+            var index = ExtractFeatureIndex(featureReply);
+
+            if (index <= 0)
+            {
+                return;
+            }
+
+            ProbeChannel($"{featureName} idx=0x{index:X2} func0 (caps)", PadFrame([0x11, 0x01, (byte)index, 0x0B, 0x00, 0x00, 0x00], 20));
+            ProbeChannel($"{featureName} idx=0x{index:X2} func1 (status)", PadFrame([0x11, 0x01, (byte)index, 0x1B, 0x00, 0x00, 0x00], 20));
+        }
+
+        static int ExtractFeatureIndex(List<string> replies)
+        {
+            foreach (var reply in replies)
+            {
+                // Успешный ответ getFeature: 1101 00 0B <index> <type> <version> ...
+                if (reply.StartsWith("1101000B", StringComparison.OrdinalIgnoreCase) && reply.Length >= 10)
+                {
+                    return Convert.ToInt32(reply.Substring(8, 2), 16);
+                }
+            }
+
+            return 0;
+        }
+
+        List<string> ProbeChannel(string label, byte[] request)
         {
             DrainAll(channel);
             var collected = new List<string>();
@@ -149,7 +176,7 @@ foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
             catch (Exception error)
             {
                 Console.WriteLine($"    {label}: запись не удалась ({error.GetType().Name})");
-                return;
+                return collected;
             }
 
             var until = DateTimeOffset.UtcNow.AddMilliseconds(1800);
@@ -175,6 +202,7 @@ foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
             }
 
             Console.WriteLine($"    {label}: {(collected.Count == 0 ? "нет ответа" : string.Join(" | ", collected))}");
+            return collected;
         }
 
         static void DrainAll(HidSharp.HidStream channelToDrain)
@@ -244,14 +272,6 @@ foreach (var transport in transports.Where(candidate => candidate.LooksLikeRecei
 }
 
 Console.WriteLine();
-
-static string Collect(HidppTransport transport, byte[] request, int timeoutMs)
-{
-    var replies = transport.CollectReplies(request, TimeSpan.FromMilliseconds(timeoutMs));
-    return replies.Count == 0
-        ? "нет ответа"
-        : string.Join(" | ", replies.Select(Convert.ToHexString));
-}
 
 static byte[] RegisterRequest(byte deviceIndex, ushort requestId, params byte[] parameters)
 {
@@ -332,41 +352,259 @@ static string Describe(HidppTransport transport, byte[] request, int timeoutMs =
     return ok ? Convert.ToHexString(raw) : $"нет ответа ({error})";
 }
 
+static IEnumerable<(string Label, byte[] Frame)> BuildDevProbeMatrix(int length)
+{
+    var shortFrame = new byte[length];
+    shortFrame[0] = 0x10;
+    shortFrame[1] = 0x01;
+    shortFrame[2] = 0x00;
+    shortFrame[3] = 0x0B;
+    shortFrame[4] = 0x10;
+    shortFrame[5] = 0x04;
+    yield return ("HID++ short 0x10 getFeature", shortFrame);
+
+    foreach (var deviceIndex in new byte[] { 0x01, 0xFF })
+    {
+        var longFrame = new byte[length];
+        longFrame[0] = 0x11;
+        longFrame[1] = deviceIndex;
+        longFrame[2] = 0x00;
+        longFrame[3] = 0x0B;
+        longFrame[4] = 0x10;
+        longFrame[5] = 0x04;
+        yield return ($"HID++ long 0x11 dev=0x{deviceIndex:X2} getFeature", longFrame);
+    }
+}
+
+static byte[] BuildCenturionFrame(byte reportId, byte address, byte functionByte, byte featureIndex, byte[] parameters, int frameLength)
+{
+    var frame = new byte[frameLength];
+    var offset = 0;
+
+    if (reportId == 0x51)
+    {
+        frame[offset++] = 0x51;
+        frame[offset++] = (byte)(3 + parameters.Length);
+        frame[offset++] = 0x00;
+    }
+    else
+    {
+        frame[offset++] = 0x50;
+        frame[offset++] = address;
+        frame[offset++] = (byte)(3 + parameters.Length);
+        frame[offset++] = 0x00;
+    }
+
+    frame[offset++] = featureIndex;
+    frame[offset++] = functionByte;
+    Array.Copy(parameters, 0, frame, offset, parameters.Length);
+    return frame;
+}
+
+static bool TryUnwrapCenturion(byte[] data, out byte reportId, out byte address, out byte[] inner)
+{
+    reportId = data.Length > 0 ? data[0] : (byte)0;
+    address = 0;
+    inner = [];
+
+    if (data.Length >= 4 && data[0] == 0x50)
+    {
+        var cpl = data[2];
+        if (cpl < 2 || 3 + cpl > data.Length)
+        {
+            return false;
+        }
+
+        address = data[1];
+        inner = data[4..(3 + cpl)];
+        return true;
+    }
+
+    if (data.Length >= 3 && data[0] == 0x51)
+    {
+        var cpl = data[1];
+        if (cpl < 2 || 2 + cpl > data.Length)
+        {
+            return false;
+        }
+
+        inner = data[3..(2 + cpl)];
+        return true;
+    }
+
+    return false;
+}
+
+static byte[]? CenturionCall(HidppTransport transport, int length, byte reportId, byte address, string label, byte featureIndex, byte functionByte, byte[] parameters)
+{
+    var frame = BuildCenturionFrame(reportId, address, functionByte, featureIndex, parameters, length);
+
+    foreach (var read in transport.CollectReplies(frame, TimeSpan.FromMilliseconds(700), 8))
+    {
+        if (!TryUnwrapCenturion(read, out _, out _, out var inner))
+        {
+            continue;
+        }
+
+        if (inner.Length >= 2 && inner[0] == featureIndex && inner[1] == functionByte)
+        {
+            Console.WriteLine($"    {label}: {Convert.ToHexString(inner)}");
+            return inner;
+        }
+    }
+
+    Console.WriteLine($"    {label}: нет ответа");
+    return null;
+}
+
 Console.WriteLine();
 Console.WriteLine("=== Centurion (G435 и подобные донглы) ===");
 
-foreach (var transport in transports.Where(candidate => !candidate.LooksLikeReceiver))
+foreach (var transport in transports.Where(candidate => !candidate.LooksLikeReceiver && candidate.MaxOutputReportLength >= 64))
 {
-    Console.WriteLine($"--- {transport.ProductName} ---");
+    var length = transport.MaxOutputReportLength;
+    Console.WriteLine($"--- {transport.ProductName} out={length} ---");
 
-    foreach (var reportId in new byte[] { 0x51, 0x50 })
+    // Пассивное прослушивание: что донгл шлёт сам (телеметрия наушников).
+    Console.WriteLine("  слушаю 25 секунд...");
+    var listenBuffer = new byte[128];
+    var listenUntil = DateTimeOffset.UtcNow.AddSeconds(25);
+    while (DateTimeOffset.UtcNow < listenUntil)
     {
-        foreach (var length in new[] { 64, 65 })
+        if (transport.TryReadRaw(listenBuffer, TimeSpan.FromMilliseconds(200), out var heard))
         {
-            var frame = new byte[length];
-            frame[0] = reportId;
+            Console.WriteLine($"    read[{heard.Length}]: {Convert.ToHexString(heard)}");
+        }
+    }
 
-            if (reportId == 0x51)
+    byte reportId = 0;
+    byte address = 0;
+    var centurionFound = false;
+
+    // Вариант 0x51: без байта адреса. Solaar для разведки использует ROOT.GetProtocolVersion (func 0x10).
+    foreach (var function in new byte[] { 0x10, 0x1B })
+    {
+        var parameters = function == 0x1B ? new byte[] { 0x00, 0x00, 0xA5 } : new byte[] { 0x00, 0x00, 0x00 };
+        var probe = BuildCenturionFrame(0x51, 0x00, function, 0x00, parameters, length);
+
+        foreach (var read in transport.CollectReplies(probe, TimeSpan.FromMilliseconds(600), 8))
+        {
+            if (TryUnwrapCenturion(read, out var id, out var addr, out var inner))
             {
-                frame[1] = 6;
-                frame[2] = 0x00;
-                frame[3] = 0x00;
-                frame[4] = 0x10;
+                var match = inner.Length >= 2 && inner[0] == 0x00 && inner[1] == function;
+                Console.WriteLine($"  0x51 func=0x{function:X2}: [{Convert.ToHexString(read)}] match={match}");
+
+                if (match)
+                {
+                    reportId = id;
+                    address = addr;
+                    centurionFound = true;
+                }
             }
             else
             {
-                frame[1] = 0x00;
-                frame[2] = 6;
-                frame[3] = 0x00;
-                frame[4] = 0x00;
-                frame[5] = 0x10;
+                Console.WriteLine($"  0x51 func=0x{function:X2}: сырое чтение [{Convert.ToHexString(read)}]");
             }
-
-            transport.DrainInput();
-            var rawOk = transport.TryRawExchange(frame, TimeSpan.FromMilliseconds(700), out var rawReply, out var rawError);
-            var display = rawOk ? Convert.ToHexString(rawReply) : $"нет ответа ({rawError})";
-            Console.WriteLine($"  0x{reportId:X2} len={length}: {display}");
         }
+    }
+
+    // Вариант 0x50: байт адреса подбирается перебором (Solaar: probe device_addr 0x00-0xFF).
+    if (!centurionFound)
+    {
+        var notified = false;
+
+        for (var candidate = 0; candidate < 256 && !centurionFound; candidate++)
+        {
+            var ping = BuildCenturionFrame(0x50, (byte)candidate, 0x10, 0x00, [0x00, 0x00, 0x00], length);
+            foreach (var read in transport.CollectReplies(ping, TimeSpan.FromMilliseconds(20), 4))
+            {
+                if (TryUnwrapCenturion(read, out var id, out var addr, out var inner)
+                    && inner.Length >= 2 && inner[0] == 0x00 && inner[1] == 0x10)
+                {
+                    Console.WriteLine($"  0x50: адрес найден 0x{candidate:X2}, ответ [{Convert.ToHexString(read)}]");
+                    reportId = id;
+                    address = addr;
+                    centurionFound = true;
+                    break;
+                }
+
+                if (!notified)
+                {
+                    notified = true;
+                    Console.WriteLine($"  во время перебора пришло чтение [{Convert.ToHexString(read)}]");
+                }
+            }
+        }
+
+        if (!centurionFound)
+        {
+            Console.WriteLine("  0x50: устройство не ответило ни на один адрес");
+        }
+    }
+
+    // Стандартный HID++ в 65-байтных кадрах: вдруг донгл говорит отчётами 0x10/0x11.
+    foreach (var (label, frame) in BuildDevProbeMatrix(length))
+    {
+        var ok = transport.TryRawExchange(frame, TimeSpan.FromMilliseconds(700), out var rawReply, out var rawError);
+        Console.WriteLine($"  {label}: {(ok ? Convert.ToHexString(rawReply) : $"нет ответа ({rawError})")}");
+    }
+
+    if (!centurionFound)
+    {
+        continue;
+    }
+
+    Console.WriteLine($"  связь есть: report=0x{reportId:X2} addr=0x{address:X2}");
+
+    var fs = CenturionCall(transport, length, reportId, address, "getFeature(0x0001)", 0x00, 0x0B, [0x00, 0x01]);
+    var fsIndex = fs is { Length: >= 3 } ? fs[2] : (byte)0;
+
+    if (fsIndex == 0)
+    {
+        Console.WriteLine("  FEATURE_SET не найден");
+        continue;
+    }
+
+    var countReply = CenturionCall(transport, length, reportId, address, "count", fsIndex, 0x0B, []);
+    var count = countReply is { Length: >= 3 } ? countReply[2] : (byte)0;
+    Console.WriteLine($"  фич у донгла: {count}");
+
+    var batteryFeature = (byte)0;
+    var sawBridge = false;
+
+    for (byte index = 0; index < Math.Min((int)count, 24); index++)
+    {
+        var reply = CenturionCall(transport, length, reportId, address, $"feature#{index}", fsIndex, 0x1B, [index]);
+        if (reply is not { Length: >= 5 })
+        {
+            continue;
+        }
+
+        var featureId = (ushort)((reply[3] << 8) | reply[4]);
+        Console.WriteLine($"    idx={index}: feature=0x{featureId:X4}");
+
+        if (featureId == 0x0104)
+        {
+            batteryFeature = index;
+        }
+        else if (featureId == 0x0003)
+        {
+            sawBridge = true;
+        }
+    }
+
+    if (batteryFeature != 0)
+    {
+        var soc = CenturionCall(transport, length, reportId, address, "BATTERY_SOC", batteryFeature, 0x0B, []);
+        Console.WriteLine(soc is { Length: >= 3 }
+            ? $"  заряд: {soc[2]}% (статус {(soc.Length > 4 ? soc[4] : (byte)0)})"
+            : "  батарея: фича есть, но не ответила");
+    }
+    else
+    {
+        Console.WriteLine(sawBridge
+            ? "  батарея: BATTERY_SOC у донгла нет, но есть bridge 0x0003 — заряд читается через bridge у наушников"
+            : "  батарея: BATTERY_SOC (0x0104) не найдена");
     }
 }
 

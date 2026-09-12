@@ -20,6 +20,56 @@ public class HidppCodecTests
     }
 
     [Fact]
+    public void BuildLongRequest_HasExpectedLayout()
+    {
+        var request = HidppCodec.BuildLongRequest(deviceIndex: 1, featureIndex: 0x00, functionId: 0x00, HidppCodec.SolaarSoftwareId, 0x10, 0x04, 0x00);
+
+        Assert.Equal(20, request.Length);
+        Assert.Equal(0x11, request[0]);
+        Assert.Equal(0x01, request[1]);
+        Assert.Equal(0x00, request[2]);
+        Assert.Equal(0x0B, request[3]);
+        Assert.Equal(0x10, request[4]);
+        Assert.Equal(0x04, request[5]);
+        Assert.Equal(0x00, request[6]);
+        Assert.Equal(0x00, request[19]);
+    }
+
+    [Fact]
+    public void TryParseDeviceReply_ParsesFeatureReply()
+    {
+        // Ответ getFeature(0x1004) от MX Master: индекс фичи 0x08 в устройстве.
+        var report = new byte[20];
+        report[0] = 0x11;
+        report[1] = 0x01;
+        report[2] = 0x00;
+        report[3] = 0x0B;
+        report[4] = 0x08;
+        report[5] = 0x00;
+        report[6] = 0x03;
+
+        Assert.True(HidppCodec.TryParseDeviceReply(report, out var reply));
+        Assert.False(reply.IsError);
+        Assert.Equal(0x01, reply.DeviceIndex);
+        Assert.Equal(0x00, reply.FeatureIndex);
+        Assert.Equal(0x0B, reply.FunctionByte);
+        Assert.Equal(0x08, reply.Payload[0]);
+    }
+
+    [Fact]
+    public void TryParseDeviceReply_ParsesErrorReply()
+    {
+        // Кадр ошибки: [0x11, devIdx, 0xFF, feature, func_sw, error].
+        byte[] report = [0x11, 0x01, 0xFF, 0x81, 0x0D, 0x06, 0x00];
+
+        Assert.True(HidppCodec.TryParseDeviceReply(report, out var reply));
+        Assert.True(reply.IsError);
+        Assert.Equal(0x81, reply.FeatureIndex);
+        Assert.Equal(0x0D, reply.FunctionByte);
+        Assert.Equal(0x06, reply.ErrorCode);
+    }
+
+    [Fact]
     public void TryParseResponse_ParsesShortResponse()
     {
         byte[] report = [0x10, 0x01, 0x04, 0x0A, 0x57, 0x03, 0x00];
