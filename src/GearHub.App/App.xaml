@@ -1,0 +1,75 @@
+<Application x:Class="GearHub.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+
+        <!-- Палитра -->
+        <SolidColorBrush x:Key="PanelBrush" Color="#E816171A" />
+        <SolidColorBrush x:Key="PanelBorderBrush" Color="#26FFFFFF" />
+        <SolidColorBrush x:Key="CardBrush" Color="#12FFFFFF" />
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F5F5F7" />
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9A9AA3" />
+        <SolidColorBrush x:Key="AccentGreenBrush" Color="#3FB950" />
+        <SolidColorBrush x:Key="AccentYellowBrush" Color="#D29922" />
+        <SolidColorBrush x:Key="AccentRedBrush" Color="#F85149" />
+
+        <!-- Иконка трея: тёмный скруглённый квадрат с батарейкой -->
+        <DrawingImage x:Key="TrayIconImage">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#FF17181C">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,32,32" RadiusX="7" RadiusY="7" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#FF3FB950">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="8.5,12,9,8" RadiusX="1.5" RadiusY="1.5" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing>
+                        <GeometryDrawing.Pen>
+                            <Pen Brush="#FFEDEDF2" Thickness="1.6" />
+                        </GeometryDrawing.Pen>
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="7,10.5,16,11" RadiusX="2.5" RadiusY="2.5" />
+                                <RectangleGeometry Rect="23.5,13.5,2,5" RadiusX="1" RadiusY="1" />
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <!-- Кнопка-иконка в стиле «глиф» -->
+        <Style x:Key="IconButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" CornerRadius="6" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#20FFFFFF" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Application.Resources>
+</Application>
