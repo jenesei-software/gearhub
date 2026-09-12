@@ -4,15 +4,7 @@
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
 
-        <!-- Палитра -->
-        <SolidColorBrush x:Key="PanelBrush" Color="#E816171A" />
-        <SolidColorBrush x:Key="PanelBorderBrush" Color="#26FFFFFF" />
-        <SolidColorBrush x:Key="CardBrush" Color="#12FFFFFF" />
-        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F5F5F7" />
-        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9A9AA3" />
-        <SolidColorBrush x:Key="AccentGreenBrush" Color="#3FB950" />
-        <SolidColorBrush x:Key="AccentYellowBrush" Color="#D29922" />
-        <SolidColorBrush x:Key="AccentRedBrush" Color="#F85149" />
+        <!-- Цвета приходят из Themes/Dark.xaml или Themes/Light.xaml (см. App.xaml.cs) -->
 
         <!-- Иконка трея: тёмный скруглённый квадрат с батарейкой -->
         <DrawingImage x:Key="TrayIconImage">
@@ -43,13 +35,13 @@
             </DrawingImage.Drawing>
         </DrawingImage>
 
-        <!-- Кнопка-иконка в стиле «глиф» -->
+        <!-- Кнопка-иконка в стиле Windows 11 -->
         <Style x:Key="IconButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Width" Value="24" />
-            <Setter Property="Height" Value="24" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Cursor" Value="Hand" />
@@ -57,13 +49,16 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root" CornerRadius="6" Background="{TemplateBinding Background}">
+                        <Border x:Name="Root" CornerRadius="4" Background="{TemplateBinding Background}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#20FFFFFF" />
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource ButtonPressedBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

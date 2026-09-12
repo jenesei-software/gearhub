@@ -86,6 +86,11 @@ public sealed class GearHubService
             var previous = records.GetValueOrDefault(observation.DeviceId);
             var lastSeen = observation.IsConnected ? now : previous?.LastSeenUtc ?? now;
 
+            // Если устройство «спит» и заряд сейчас не прочитать — оставляем последнее известное значение.
+            var battery = observation.Battery.IsAvailable
+                ? observation.Battery
+                : previous?.Battery ?? BatteryReading.Unknown;
+
             records[observation.DeviceId] = new GearPresenceRecord
             {
                 DeviceId = observation.DeviceId,
@@ -93,13 +98,13 @@ public sealed class GearHubService
                 Source = observation.Source,
                 Kind = observation.Kind,
                 LastSeenUtc = lastSeen,
-                Battery = observation.Battery,
+                Battery = battery,
                 Detail = observation.Detail,
                 IsTrusted = observation.IsTrusted,
             };
 
             devices.Add(ToDevice(
-                observation,
+                observation with { Battery = battery },
                 lastSeen,
                 _policy.Evaluate(observation.IsConnected, observation.HasFault, lastSeen, now)));
         }

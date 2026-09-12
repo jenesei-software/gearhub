@@ -12,7 +12,8 @@
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
         MinWidth="300"
-        MaxWidth="1000"
+        MaxWidth="420"
+        MaxHeight="640"
         FontFamily="Segoe UI Variable Text, Segoe UI"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display">
@@ -20,10 +21,12 @@
     <Window.Resources>
         <DataTemplate x:Key="DeviceCardTemplate" DataType="{x:Type vm:DeviceViewModel}">
             <Border x:Name="Card"
-                    CornerRadius="10"
-                    Background="{StaticResource CardBrush}"
+                    CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
+                    BorderThickness="1"
                     Padding="10,7"
-                    Margin="3">
+                    Margin="4">
                 <Border.ContextMenu>
                     <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                         <MenuItem Header="Игнорировать" Command="{Binding IgnoreCommand}" />
@@ -40,19 +43,19 @@
                              Grid.Column="0"
                              Width="8"
                              Height="8"
-                             Fill="{StaticResource AccentGreenBrush}"
+                             Fill="{DynamicResource AccentGreenBrush}"
                              VerticalAlignment="Center"
                              Margin="0,0,8,0" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
                         <TextBlock Text="{Binding Name}"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    FontSize="12.5"
                                    FontWeight="SemiBold"
                                    MaxWidth="180"
                                    TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding Subtitle}"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    FontSize="10.5"
                                    MaxWidth="180"
                                    TextTrimming="CharacterEllipsis" />
@@ -62,11 +65,11 @@
                         <TextBlock Text="{Binding BatteryGlyph}"
                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                    FontSize="13"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    VerticalAlignment="Center"
                                    Margin="0,0,4,0" />
                         <TextBlock Text="{Binding BatteryText}"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    FontSize="12"
                                    VerticalAlignment="Center" />
                     </StackPanel>
@@ -74,11 +77,14 @@
             </Border>
 
             <DataTemplate.Triggers>
+                <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Card" Property="Background" Value="{DynamicResource CardHoverBrush}" />
+                </Trigger>
                 <DataTrigger Binding="{Binding Status}" Value="Attention">
-                    <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource AccentYellowBrush}" />
+                    <Setter TargetName="StatusDot" Property="Fill" Value="{DynamicResource AccentYellowBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Lost">
-                    <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource AccentRedBrush}" />
+                    <Setter TargetName="StatusDot" Property="Fill" Value="{DynamicResource AccentRedBrush}" />
                     <Setter TargetName="Card" Property="Opacity" Value="0.55" />
                 </DataTrigger>
             </DataTemplate.Triggers>
@@ -87,22 +93,20 @@
 
     <Grid>
         <Border x:Name="Root"
-                CornerRadius="14"
-                Background="{StaticResource PanelBrush}"
-                BorderBrush="{StaticResource PanelBorderBrush}"
+                CornerRadius="8"
+                Background="{DynamicResource PanelBackgroundBrush}"
+                BorderBrush="{DynamicResource PanelBorderBrush}"
                 BorderThickness="1"
-                Padding="10,8"
+                Padding="6,5"
                 ToolTip="{Binding StatusLine}"
+                Effect="{DynamicResource PanelShadow}"
                 MouseLeftButtonDown="OnRootMouseDown">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.45" Color="#000000" />
-            </Border.Effect>
             <DockPanel>
 
                 <StackPanel DockPanel.Dock="Right"
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
-                            Margin="8,0,0,0">
+                            Margin="6,0,0,0">
                     <Button Style="{StaticResource IconButtonStyle}"
                             Content="&#xE72C;"
                             ToolTip="Обновить сейчас"
@@ -115,17 +119,21 @@
                 </StackPanel>
 
                 <Grid>
-                    <ItemsControl ItemsSource="{Binding Devices}"
-                                  ItemTemplate="{StaticResource DeviceCardTemplate}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  MaxHeight="560">
+                        <ItemsControl ItemsSource="{Binding Devices}"
+                                      ItemTemplate="{StaticResource DeviceCardTemplate}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Vertical" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
 
                     <TextBlock Text="Устройства не найдены"
-                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                FontSize="12"
                                VerticalAlignment="Center"
                                HorizontalAlignment="Center"

@@ -57,6 +57,48 @@ public class GearHubServiceTests
     }
 
     [Fact]
+    public async Task KeepsLastKnownBatteryWhenDeviceIsAsleep()
+    {
+        var time = new FakeTimeProvider(Start);
+        var store = new MemoryStore();
+        var provider = new FakeProvider
+        {
+            Observations =
+            [
+                new GearObservation
+                {
+                    DeviceId = "hidpp:1",
+                    Name = "Logitech-мышь",
+                    Source = "Logitech HID++",
+                    Kind = GearKind.Mouse,
+                    Battery = new BatteryReading { Percent = 75 },
+                },
+            ],
+        };
+
+        var service = new GearHubService([provider], store, new DeviceFilter(), new StatusPolicy(), time);
+
+        var first = await service.ScanAsync();
+        Assert.Equal(75, Assert.Single(first.Devices).Battery.Percent);
+
+        // Устройство уснуло: заряд прочитать не удалось.
+        time.Now = Start + TimeSpan.FromMinutes(1);
+        provider.Observations =
+        [
+            new GearObservation
+            {
+                DeviceId = "hidpp:1",
+                Name = "Logitech-мышь",
+                Source = "Logitech HID++",
+                Kind = GearKind.Mouse,
+            },
+        ];
+
+        var second = await service.ScanAsync();
+        Assert.Equal(75, Assert.Single(second.Devices).Battery.Percent);
+    }
+
+    [Fact]
     public async Task HidesIgnoredDevices()
     {
         var time = new FakeTimeProvider(Start);

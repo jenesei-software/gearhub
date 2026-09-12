@@ -17,6 +17,12 @@ public sealed class HidppTransport : IDisposable
     private readonly HidStream _stream;
     private readonly object _gate = new();
 
+    /// <summary>
+    /// Любое прочитанное сообщение, включая нотификации, которые не являются ответом на запрос.
+    /// Провайдер через это событие видит то, что иначе было бы отброшено при разборе ответов.
+    /// </summary>
+    public event Action<byte[]>? MessageRead;
+
     private HidppTransport(HidDevice device, HidStream stream, string productName)
     {
         _device = device;
@@ -38,7 +44,7 @@ public sealed class HidppTransport : IDisposable
 
     /// <summary>
     /// Отправляет запрос и возвращает первый ответ, адресованный этому же устройству.
-    /// Подходит для HID++ 1.0-запросов (регистры), где нетSoftwareId.
+    /// Подходит для HID++ 1.0-запросов (регистры), где нет SoftwareId.
     /// </summary>
     public bool TryExchange(byte[] request, byte deviceIndex, TimeSpan timeout, out byte[] reply)
     {
@@ -65,6 +71,11 @@ public sealed class HidppTransport : IDisposable
                 try
                 {
                     var read = _stream.Read(buffer, 0, buffer.Length);
+                    if (read > 0)
+                    {
+                        RaiseMessageRead(buffer, read);
+                    }
+
                     if (read >= 2 && buffer[1] == deviceIndex)
                     {
                         reply = buffer.AsSpan(0, read).ToArray();
@@ -84,6 +95,33 @@ public sealed class HidppTransport : IDisposable
         }
     }
 
+    /// <summary>Фоновое чтение: ждёт отчёт заданное время и возвращает его как есть (для слушателя нотификаций).</summary>
+    public bool TryReadRaw(byte[] buffer, TimeSpan timeout, out byte[] data)
+    {
+        lock (_gate)
+        {
+            data = [];
+            _stream.ReadTimeout = Math.Max(MinimumReadTimeoutMs, (int)timeout.TotalMilliseconds);
+
+            try
+            {
+                var read = _stream.Read(buffer, 0, buffer.Length);
+                if (read <= 0)
+                {
+                    return false;
+                }
+
+                RaiseMessageRead(buffer, read);
+                data = buffer.AsSpan(0, read).ToArray();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
     /// <summary>Диагностика: читает всё, что уже накопилось во входном буфере.</summary>
     public void DrainInput()
     {
@@ -96,10 +134,13 @@ public sealed class HidppTransport : IDisposable
             {
                 try
                 {
-                    if (_stream.Read(buffer, 0, buffer.Length) <= 0)
+                    var read = _stream.Read(buffer, 0, buffer.Length);
+                    if (read <= 0)
                     {
                         break;
                     }
+
+                    RaiseMessageRead(buffer, read);
                 }
                 catch
                 {
@@ -137,6 +178,7 @@ public sealed class HidppTransport : IDisposable
                     var read = _stream.Read(buffer, 0, buffer.Length);
                     if (read > 0)
                     {
+                        RaiseMessageRead(buffer, read);
                         replies.Add(buffer.AsSpan(0, read).ToArray());
                     }
                 }
@@ -278,7 +320,14 @@ public sealed class HidppTransport : IDisposable
                     return false;
                 }
 
-                if (read <= 0 || !HidppCodec.TryParseResponse(buffer.AsSpan(0, read), out var parsed))
+                if (read <= 0)
+                {
+                    continue;
+                }
+
+                RaiseMessageRead(buffer, read);
+
+                if (!HidppCodec.TryParseResponse(buffer.AsSpan(0, read), out var parsed))
                 {
                     continue;
                 }
@@ -341,6 +390,23 @@ public sealed class HidppTransport : IDisposable
         catch
         {
             return "Logitech";
+        }
+    }
+
+    private void RaiseMessageRead(byte[] buffer, int count)
+    {
+        var handler = MessageRead;
+        if (handler is null || count <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            handler(buffer.AsSpan(0, count).ToArray());
+        }
+        catch
+        {
         }
     }
 }

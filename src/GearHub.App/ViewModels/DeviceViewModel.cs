@@ -86,20 +86,19 @@ public sealed partial class DeviceViewModel : ObservableObject
 
     private static string FormatBatteryText(BatteryReading battery)
     {
-        if (battery.Percent is { } percent)
-        {
-            return $"{percent}%";
-        }
+        var text = battery.Percent is { } percent
+            ? $"{percent}%"
+            : battery.Coarse switch
+            {
+                CoarseBatteryLevel.Empty => "Разряжен",
+                CoarseBatteryLevel.Low => "Низкий",
+                CoarseBatteryLevel.Medium => "Средний",
+                CoarseBatteryLevel.High => "Высокий",
+                CoarseBatteryLevel.Full => "Полный",
+                _ => "—",
+            };
 
-        return battery.Coarse switch
-        {
-            CoarseBatteryLevel.Empty => "Разряжен",
-            CoarseBatteryLevel.Low => "Низкий",
-            CoarseBatteryLevel.Medium => "Средний",
-            CoarseBatteryLevel.High => "Высокий",
-            CoarseBatteryLevel.Full => "Полный",
-            _ => "—",
-        };
+        return battery.IsCharging && battery.IsAvailable ? $"{text} ⚡" : text;
     }
 
     /// <summary>Глиф батарейки из Segoe MDL2: Battery0..Battery9 = E850..E859, Battery10 = E83F.</summary>

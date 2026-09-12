@@ -18,37 +18,26 @@ foreach (var transport in transports)
 }
 
 Console.WriteLine();
-Console.WriteLine("=== Эксперимент: регистр 0x00, повторные чтения, нотификации ===");
+Console.WriteLine("=== Эксперимент: слот 1, длинные окна чтения ===");
 
 foreach (var transport in transports.Where(candidate => candidate.LooksLikeReceiver))
 {
     Console.WriteLine($"--- {transport.ProductName} ---");
 
-    foreach (byte slot in new byte[] { 1, 2 })
-    {
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            transport.DrainInput();
-            var notifications = Collect(transport, RegisterRequest(slot, 0x8100), 700);
+    transport.DrainInput();
+    var featureReplies = transport.CollectReplies(
+        HidppCodec.BuildShortRequest(1, 0x00, 0x00, 0x0B, 0x10, 0x04),
+        TimeSpan.FromMilliseconds(3000),
+        8);
+    Console.WriteLine($"  getFeature(0x1004): {(featureReplies.Count == 0 ? "нет ответа" : string.Join(" | ", featureReplies.Select(Convert.ToHexString)))}");
 
-            transport.DrainInput();
-            var pairing = Collect(transport, RegisterRequest(0xFF, 0x83B5, (byte)(0x20 + slot - 1)), 700);
+    transport.DrainInput();
+    var chargeReplies = transport.CollectReplies(RegisterRequest(1, 0x810D), TimeSpan.FromMilliseconds(3000), 8);
+    Console.WriteLine($"  read 0x0D: {(chargeReplies.Count == 0 ? "нет ответа" : string.Join(" | ", chargeReplies.Select(Convert.ToHexString)))}");
 
-            transport.DrainInput();
-            var name = Collect(transport, RegisterRequest(0xFF, 0x83B5, (byte)(0x40 + slot - 1)), 700);
-
-            Console.WriteLine($"  slot {slot} попытка {attempt}: reg0x00={notifications} pairing={pairing} name={name}");
-        }
-
-        // Включаем нотификации о заряде: BATTERY_STATUS = 0x100000 → байты [0x00, 0x00, 0x10].
-        transport.DrainInput();
-        var ack = Collect(transport, RegisterRequest(slot, 0x8000, 0x00, 0x00, 0x10), 700);
-
-        transport.DrainInput();
-        var readBack = Collect(transport, RegisterRequest(slot, 0x8100), 700);
-
-        Console.WriteLine($"  slot {slot}: write reg0x00 [00 00 10] ack={ack} readback={readBack}");
-    }
+    transport.DrainInput();
+    var pingReplies = transport.CollectReplies(HidppCodec.BuildShortRequest(1, 0x00, 0x01, 0x0B, 0x00, 0x00, 0xA5), TimeSpan.FromMilliseconds(3000), 8);
+    Console.WriteLine($"  ping: {(pingReplies.Count == 0 ? "нет ответа" : string.Join(" | ", pingReplies.Select(Convert.ToHexString)))}");
 }
 
 Console.WriteLine();
@@ -139,6 +128,46 @@ static string Describe(HidppTransport transport, byte[] request, int timeoutMs =
     var ok = transport.TryRawExchange(request, TimeSpan.FromMilliseconds(timeoutMs), out var raw, out var error);
     return ok ? Convert.ToHexString(raw) : $"нет ответа ({error})";
 }
+
+Console.WriteLine();
+Console.WriteLine("=== Centurion (G435 и подобные донглы) ===");
+
+foreach (var transport in transports.Where(candidate => !candidate.LooksLikeReceiver))
+{
+    Console.WriteLine($"--- {transport.ProductName} ---");
+
+    foreach (var reportId in new byte[] { 0x51, 0x50 })
+    {
+        foreach (var length in new[] { 64, 65 })
+        {
+            var frame = new byte[length];
+            frame[0] = reportId;
+
+            if (reportId == 0x51)
+            {
+                frame[1] = 6;
+                frame[2] = 0x00;
+                frame[3] = 0x00;
+                frame[4] = 0x10;
+            }
+            else
+            {
+                frame[1] = 0x00;
+                frame[2] = 6;
+                frame[3] = 0x00;
+                frame[4] = 0x00;
+                frame[5] = 0x10;
+            }
+
+            transport.DrainInput();
+            var rawOk = transport.TryRawExchange(frame, TimeSpan.FromMilliseconds(700), out var rawReply, out var rawError);
+            var display = rawOk ? Convert.ToHexString(rawReply) : $"нет ответа ({rawError})";
+            Console.WriteLine($"  0x{reportId:X2} len={length}: {display}");
+        }
+    }
+}
+
+Console.WriteLine();
 Console.WriteLine("=== Устройства и заряд ===");
 
 using var provider = new LogitechHidppProvider();
