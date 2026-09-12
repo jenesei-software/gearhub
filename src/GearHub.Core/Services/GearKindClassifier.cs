@@ -11,9 +11,20 @@ public static class GearKindClassifier
         "геймпад", "джойстик",
     ];
 
-    private static readonly string[] KeyboardHints = ["keyboard", "клавиатура"];
+    private static readonly string[] KeyboardHints =
+    [
+        "keyboard", "клавиатура",
+        "mx keys", "mechanical", "craft",
+        "k380", "k400", "k580", "k650", "k780", "k860",
+        "g915", "g815", "g413",
+    ];
 
-    private static readonly string[] MouseHints = ["mouse", "trackball", "мышь"];
+    private static readonly string[] MouseHints =
+    [
+        "mouse", "trackball", "мышь",
+        "master", "anywhere", "lift", "superlight",
+        "m185", "m220", "m330", "m720", "g304", "g305", "g502", "g703", "g903",
+    ];
 
     private static readonly string[] HeadsetHints =
     [

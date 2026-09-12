@@ -28,6 +28,14 @@ public sealed class DeviceFilter
 
     private static readonly string[] JunkSuffixes = [" service", " service (", " profile", " enumerator"];
 
+    private static readonly string[] JunkPrefixes =
+    [
+        "Logitech G HUB Virtual",
+        "Virtual HID",
+        "Virtual Keyboard",
+        "Virtual Mouse",
+    ];
+
     public bool ShouldHide(GearObservation device, IReadOnlySet<string> ignoredIds)
     {
         if (ignoredIds.Contains(device.DeviceId))
@@ -41,6 +49,11 @@ public sealed class DeviceFilter
             return true;
         }
 
+        if (JunkPrefixes.Any(prefix => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
         var looksLikeJunk = JunkNames.Contains(name)
             || JunkSuffixes.Any(suffix => name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
 
@@ -50,7 +63,8 @@ public sealed class DeviceFilter
         }
 
         // Устройство неизвестного класса без заряда и без ошибок — почти наверняка служебный узел.
-        if (device.Kind == GearKind.Other && !device.Battery.IsAvailable && !device.HasFault)
+        // Исключение: устройства, найденные достоверным способом (IsTrusted), — их показываем всегда.
+        if (device.Kind == GearKind.Other && !device.Battery.IsAvailable && !device.HasFault && !device.IsTrusted)
         {
             return true;
         }

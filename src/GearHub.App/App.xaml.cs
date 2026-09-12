@@ -5,6 +5,7 @@ using GearHub.Core.Abstractions;
 using GearHub.Core.Persistence;
 using GearHub.Core.Services;
 using GearHub.Providers.Windows.Bluetooth;
+using GearHub.Providers.Windows.Logitech;
 using GearHub.Providers.Windows.XInput;
 
 namespace GearHub.App;
@@ -27,6 +28,7 @@ public partial class App : Application
         _providers =
         [
             new XInputGearProvider(),
+            new LogitechHidppProvider(),
             new BleGattBatteryProvider(),
         ];
 

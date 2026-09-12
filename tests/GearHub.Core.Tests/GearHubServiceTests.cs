@@ -61,7 +61,7 @@ public class GearHubServiceTests
     {
         var time = new FakeTimeProvider(Start);
         var store = new MemoryStore();
-        store.SetIgnored("ble:junk");
+        store.SetIgnored("ble:junk", true);
 
         var provider = new FakeProvider
         {

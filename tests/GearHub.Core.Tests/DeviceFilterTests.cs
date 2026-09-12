@@ -103,4 +103,31 @@ public class DeviceFilterTests
 
         Assert.True(_filter.ShouldHide(observation, NoIgnores));
     }
+
+    [Fact]
+    public void HidesLogitechVirtualKeyboard()
+    {
+        var observation = new GearObservation
+        {
+            DeviceId = "hid:1",
+            Name = "Logitech G HUB Virtual Keyboard",
+            Source = "HID",
+        };
+
+        Assert.True(_filter.ShouldHide(observation, NoIgnores));
+    }
+
+    [Fact]
+    public void KeepsTrustedDeviceWithoutBattery()
+    {
+        var observation = new GearObservation
+        {
+            DeviceId = "hidpp:path#1",
+            Name = "Logitech-устройство 1",
+            Source = "Logitech HID++",
+            IsTrusted = true,
+        };
+
+        Assert.False(_filter.ShouldHide(observation, NoIgnores));
+    }
 }

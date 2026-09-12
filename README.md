@@ -7,6 +7,8 @@
 
 - **Xbox-геймпады** (XInput): уровень заряда (пусто/низкий/средний/полный), питание от USB/батарейки/аккумулятор.
 - **Устройства Bluetooth LE** с Battery Service (`GATT 0x180F`): точный процент заряда.
+- **Logitech через HID++**: устройства за приёмниками Unifying/Bolt находятся через регистры приёмника;
+  заряд читается по HID++ 2.0 (`0x1004`/`0x1001`/`0x1000`), с фолбэком на регистры HID++ 1.0 (`0x0D`/`0x07`).
 - **Статусы устройств:**
   - 🟢 подключено (зелёный),
   - 🟡 недавно отключено (по умолчанию < 6 ч) или ошибка чтения заряда (жёлтый),
@@ -21,18 +23,67 @@
 - .NET SDK 10 (только для сборки). Рантайм ставить не нужно при запуске через `dotnet run`.
 - Visual Studio не требуется.
 
-## Сборка и запуск
+## Тестовый запуск (по шагам)
+
+Всё делается из терминала, Visual Studio не нужна. Если SDK установлен в профиль пользователя
+(как на этой машине), в VS Code терминал путь уже добавлен через `.vscode/settings.json`.
 
 ```powershell
-# если SDK установлен локально в профиль (как на этой машине):
+# 1. Подготовить окружение (в обычном PowerShell; в терминале VS Code не нужно)
 $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
 
-dotnet build GearHub.sln
-dotnet test
+# 2. Собрать и прогнать тесты
+dotnet build GearHub.slnx -c Debug
+dotnet test GearHub.slnx --no-build
+
+# 3. Запустить виджет
 dotnet run --project src/GearHub.App
 ```
 
-Тесты не требуют железа. Запуск приложения покажет только устройства, реально подключённые к машине.
+Либо запустить уже собранный exe отдельным процессом (не закрывается вместе с терминалом):
+
+```powershell
+$env:DOTNET_ROOT = "$env:LOCALAPPDATA\Microsoft\dotnet"   # в Program Files только рантайм .NET 8
+Start-Process src\GearHub.App\bin\Debug\net10.0-windows10.0.19041.0\GearHub.exe
+```
+
+Как пользоваться: полоса висит внизу по центру экрана, иконка — в трее. Двойной клик по трею —
+показать/скрыть, правый клик по карточке — «Игнорировать», кнопка ↻ — обновить сейчас,
+обновление автоматически раз в 30 секунд, выход — через меню трея.
+
+## Диагностика Logitech
+
+```powershell
+dotnet run --project tools/GearHub.HidProbe
+```
+
+Пробник печатает все HID++ интерфейсы, слоты приёмника (pairing/имя/заряд) и сырые ответы устройств.
+Полезно, когда устройство «не видно»: сразу понятно, что ответило — приёмник, устройство или никто.
+
+Важно: Logitech-устройства в простое уходят в сон, и HID++ запросы к ним возвращают
+«RESOURCE_ERROR» (недостижимо). Это нормально: тронь мышь/нажми клавишу и обнови виджет —
+заряд появится.
+
+## Как удалить всё тестовое
+
+Ничего в систему не устанавливается: нет служб, драйверов, автозапуска и записей в реестре.
+Удаление — это просто остановить приложение и убрать файлы.
+
+```powershell
+# 1. Закрыть приложение (или меню трея → «Выход»)
+Stop-Process -Name GearHub -ErrorAction SilentlyContinue
+
+# 2. Удалить историю и настройки виджета
+Remove-Item "$env:APPDATA\GearHub" -Recurse -Force -ErrorAction SilentlyContinue
+
+# 3. Удалить артефакты сборки
+dotnet clean GearHub.slnx
+Remove-Item -Recurse -Force .\src\*\bin, .\src\*\obj, .\tests\*\bin, .\tests\*\obj, .\tools\*\bin, .\tools\*\obj -ErrorAction SilentlyContinue
+
+# 4. Опционально — удалить локально установленный .NET SDK
+Remove-Item "$env:LOCALAPPDATA\Microsoft\dotnet" -Recurse -Force
+# после этого уберите блок terminal.integrated.env.windows из .vscode/settings.json
+```
 
 ## Структура
 
@@ -43,7 +94,10 @@ dotnet run --project src/GearHub.App
 | `src/GearHub.App` | WPF-интерфейс: полоса внизу экрана + иконка в трее |
 | `tests/GearHub.Core.Tests` | Юнит-тесты статусов и фильтра |
 
-## Роадмап
+## x] Logitech HID++: приёмники Unifying/Bolt, чтение имён и заряда, обработка спящих устройств.
+- [ ] Logitech: подписка на нотификации (BATTERY_STATUS) — заряд спящих устройств без опроса.
+- [ ] Logitech Bolt: чтение pairing-инфо для приёмников, которые не отвечают на стандартные саб-регистры.
+- [ ] G435 Lightspeed (Centurion-протокол) — заряд игровых наушников
 
 - [ ] Logitech HID++ (`0x1004`/`0x1000` через HidSharp) — точный % для клавиатур и мышей Logitech.
 - [ ] Bluetooth Classic (наушники): исследование источника батареи, который использует Параметры Windows.

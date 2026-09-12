@@ -95,6 +95,7 @@ public sealed class GearHubService
                 LastSeenUtc = lastSeen,
                 Battery = observation.Battery,
                 Detail = observation.Detail,
+                IsTrusted = observation.IsTrusted,
             };
 
             devices.Add(ToDevice(
@@ -120,6 +121,7 @@ public sealed class GearHubService
                 IsConnected = false,
                 Battery = record.Battery,
                 Detail = record.Detail,
+                IsTrusted = record.IsTrusted,
             };
 
             if (_filter.ShouldHide(stub, ignored))
@@ -149,6 +151,7 @@ public sealed class GearHubService
         Kind = observation.Kind,
         IsConnected = observation.IsConnected,
         HasFault = observation.HasFault,
+        IsTrusted = observation.IsTrusted,
         Battery = observation.Battery,
         Detail = observation.Detail,
         LastSeenUtc = lastSeenUtc,

@@ -18,6 +18,12 @@ public sealed record GearObservation
     /// <summary>True, если устройство подключено, но провайдер не смог прочитать данные о нём.</summary>
     public bool HasFault { get; init; }
 
+    /// <summary>
+    /// True для заведомо реальных устройств, найденных достоверным способом (например, за приёмником Logitech).
+    /// Такие устройства показываются в виджете, даже если заряд и тип неизвестны.
+    /// </summary>
+    public bool IsTrusted { get; init; }
+
     public BatteryReading Battery { get; init; } = BatteryReading.Unknown;
 
     /// <summary>Произвольная подробность для UI: «Питание от USB», «Батарейки AA» и т.п.</summary>

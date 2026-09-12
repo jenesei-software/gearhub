@@ -15,6 +15,8 @@ public sealed record GearDevice
 
     public bool HasFault { get; init; }
 
+    public bool IsTrusted { get; init; }
+
     public BatteryReading Battery { get; init; } = BatteryReading.Unknown;
 
     public string? Detail { get; init; }

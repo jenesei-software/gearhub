@@ -1,0 +1,346 @@
+using HidSharp;
+
+namespace GearHub.Providers.Windows.Logitech;
+
+/// <summary>
+/// Транспорт HID++: открывает vendor-defined HID-интерфейс Logitech
+/// (usage page 0xFF00, usage 0x0001) и обменивается короткими отчётами 0x10.
+/// </summary>
+public sealed class HidppTransport : IDisposable
+{
+    private const int LogitechVendorId = 0x046D;
+    private const int HidppUsagePage = 0xFF00;
+    private const int HidppUsage = 0x0001;
+    private const int MinimumReadTimeoutMs = 30;
+
+    private readonly HidDevice _device;
+    private readonly HidStream _stream;
+    private readonly object _gate = new();
+
+    private HidppTransport(HidDevice device, HidStream stream, string productName)
+    {
+        _device = device;
+        _stream = stream;
+        ProductName = productName;
+        _stream.ReadTimeout = MinimumReadTimeoutMs;
+    }
+
+    public string DevicePath => _device.DevicePath;
+
+    public string ProductName { get; }
+
+    public int MaxInputReportLength => _device.GetMaxInputReportLength();
+
+    public int MaxOutputReportLength => _device.GetMaxOutputReportLength();
+
+    /// <summary>Приёмники Unifying/Bolt представляются как «USB Receiver» и проксируют до 6 устройств.</summary>
+    public bool LooksLikeReceiver => ProductName.Contains("receiver", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Отправляет запрос и возвращает первый ответ, адресованный этому же устройству.
+    /// Подходит для HID++ 1.0-запросов (регистры), где нетSoftwareId.
+    /// </summary>
+    public bool TryExchange(byte[] request, byte deviceIndex, TimeSpan timeout, out byte[] reply)
+    {
+        lock (_gate)
+        {
+            reply = [];
+
+            try
+            {
+                _stream.Write(request);
+            }
+            catch
+            {
+                return false;
+            }
+
+            var buffer = new byte[64];
+            var deadline = DateTime.UtcNow + timeout;
+
+            while (DateTime.UtcNow < deadline)
+            {
+                _stream.ReadTimeout = Math.Max(MinimumReadTimeoutMs, (int)Math.Min(400, (deadline - DateTime.UtcNow).TotalMilliseconds));
+
+                try
+                {
+                    var read = _stream.Read(buffer, 0, buffer.Length);
+                    if (read >= 2 && buffer[1] == deviceIndex)
+                    {
+                        reply = buffer.AsSpan(0, read).ToArray();
+                        return true;
+                    }
+                }
+                catch (TimeoutException)
+                {
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    /// <summary>Диагностика: читает всё, что уже накопилось во входном буфере.</summary>
+    public void DrainInput()
+    {
+        lock (_gate)
+        {
+            var buffer = new byte[64];
+            _stream.ReadTimeout = 5;
+
+            for (var attempt = 0; attempt < 64; attempt++)
+            {
+                try
+                {
+                    if (_stream.Read(buffer, 0, buffer.Length) <= 0)
+                    {
+                        break;
+                    }
+                }
+                catch
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>Диагностика: отправляет запрос и собирает все ответы за отведённое время.</summary>
+    public IReadOnlyList<byte[]> CollectReplies(byte[] request, TimeSpan timeout, int maxReplies = 6)
+    {
+        lock (_gate)
+        {
+            var replies = new List<byte[]>();
+
+            try
+            {
+                _stream.Write(request);
+            }
+            catch
+            {
+                return replies;
+            }
+
+            var buffer = new byte[64];
+            var deadline = DateTime.UtcNow + timeout;
+
+            while (DateTime.UtcNow < deadline && replies.Count < maxReplies)
+            {
+                _stream.ReadTimeout = Math.Max(MinimumReadTimeoutMs, (int)Math.Min(400, (deadline - DateTime.UtcNow).TotalMilliseconds));
+
+                try
+                {
+                    var read = _stream.Read(buffer, 0, buffer.Length);
+                    if (read > 0)
+                    {
+                        replies.Add(buffer.AsSpan(0, read).ToArray());
+                    }
+                }
+                catch (TimeoutException)
+                {
+                }
+                catch
+                {
+                    break;
+                }
+            }
+
+            return replies;
+        }
+    }
+
+    /// <summary>Диагностика: отправляет сырой отчёт и возвращает первый ответ как есть.</summary>
+    public bool TryRawExchange(byte[] request, TimeSpan timeout, out byte[] response, out string? error)
+    {
+        lock (_gate)
+        {
+            response = [];
+            error = null;
+
+            try
+            {
+                _stream.Write(request);
+            }
+            catch (Exception ex)
+            {
+                error = $"write: {ex.GetType().Name}: {ex.Message}";
+                return false;
+            }
+
+            var buffer = new byte[64];
+            var deadline = DateTime.UtcNow + timeout;
+
+            while (DateTime.UtcNow < deadline)
+            {
+                _stream.ReadTimeout = Math.Max(MinimumReadTimeoutMs, (int)Math.Min(400, (deadline - DateTime.UtcNow).TotalMilliseconds));
+
+                try
+                {
+                    var read = _stream.Read(buffer, 0, buffer.Length);
+                    if (read > 0)
+                    {
+                        response = buffer.AsSpan(0, read).ToArray();
+                        return true;
+                    }
+                }
+                catch (TimeoutException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    error = $"read: {ex.GetType().Name}: {ex.Message}";
+                    return false;
+                }
+            }
+
+            error ??= "таймаут: ответа нет";
+            return false;
+        }
+    }
+
+    /// <summary>Все доступные интерфейсы HID++ среди устройств Logitech.</summary>
+    public static IReadOnlyList<HidppTransport> FindAll()
+    {
+        var transports = new List<HidppTransport>();
+
+        foreach (var device in DeviceList.Local.GetHidDevices(LogitechVendorId))
+        {
+            try
+            {
+                if (!HasHidppInterface(device) || !device.TryOpen(out var stream))
+                {
+                    continue;
+                }
+
+                transports.Add(new HidppTransport(device, stream, SafeProductName(device)));
+            }
+            catch
+            {
+                // Устройство могло отключиться между перечислением и открытием.
+            }
+        }
+
+        return transports;
+    }
+
+    /// <summary>
+    /// Отправляет короткий запрос и ждёт ответ от того же устройства.
+    /// Посторонние отчёты (нотификации приёмника и т.п.) пропускаются.
+    /// </summary>
+    public bool TrySend(
+        byte deviceIndex,
+        byte featureIndex,
+        byte functionId,
+        byte softwareId,
+        TimeSpan timeout,
+        out HidppResponse response,
+        byte parameter0 = 0,
+        byte parameter1 = 0,
+        byte parameter2 = 0)
+    {
+        lock (_gate)
+        {
+            response = default;
+
+            var request = HidppCodec.BuildShortRequest(deviceIndex, featureIndex, functionId, softwareId, parameter0, parameter1, parameter2);
+            var deadline = DateTime.UtcNow + timeout;
+            var buffer = new byte[64];
+
+            try
+            {
+                _stream.Write(request);
+            }
+            catch
+            {
+                return false;
+            }
+
+            while (DateTime.UtcNow < deadline)
+            {
+                var remaining = deadline - DateTime.UtcNow;
+                _stream.ReadTimeout = Math.Max(MinimumReadTimeoutMs, (int)Math.Min(400, remaining.TotalMilliseconds));
+
+                int read;
+                try
+                {
+                    read = _stream.Read(buffer, 0, buffer.Length);
+                }
+                catch (TimeoutException)
+                {
+                    continue;
+                }
+                catch
+                {
+                    return false;
+                }
+
+                if (read <= 0 || !HidppCodec.TryParseResponse(buffer.AsSpan(0, read), out var parsed))
+                {
+                    continue;
+                }
+
+                if (parsed.DeviceIndex != deviceIndex || parsed.SoftwareId != softwareId)
+                {
+                    continue;
+                }
+
+                if (!parsed.IsError && parsed.FeatureIndex != featureIndex)
+                {
+                    continue;
+                }
+
+                response = parsed;
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            _stream.Dispose();
+        }
+        catch
+        {
+            // Ignore.
+        }
+    }
+
+    private static bool HasHidppInterface(HidDevice device)
+    {
+        var descriptor = device.GetReportDescriptor();
+
+        foreach (var item in descriptor.DeviceItems)
+        {
+            foreach (var value in item.Usages.GetAllValues())
+            {
+                // В HID-спеке 32-битный usage кодируется как (страница << 16) | номер.
+                if ((value >> 16) == HidppUsagePage && (value & 0xFFFF) == HidppUsage)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static string SafeProductName(HidDevice device)
+    {
+        try
+        {
+            return device.GetProductName() ?? "Logitech";
+        }
+        catch
+        {
+            return "Logitech";
+        }
+    }
+}

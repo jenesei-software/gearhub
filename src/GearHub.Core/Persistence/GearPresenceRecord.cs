@@ -18,4 +18,6 @@ public sealed record GearPresenceRecord
     public BatteryReading Battery { get; init; } = BatteryReading.Unknown;
 
     public string? Detail { get; init; }
+
+    public bool IsTrusted { get; init; }
 }

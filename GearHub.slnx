@@ -1,2 +1,13 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GearHub.App/GearHub.App.csproj" />
+    <Project Path="src/GearHub.Core/GearHub.Core.csproj" />
+    <Project Path="src/GearHub.Providers.Windows/GearHub.Providers.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GearHub.Core.Tests/GearHub.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/GearHub.HidProbe/GearHub.HidProbe.csproj" />
+  </Folder>
 </Solution>
