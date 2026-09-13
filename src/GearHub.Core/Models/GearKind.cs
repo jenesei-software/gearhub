@@ -1,6 +1,6 @@
 namespace GearHub.Core.Models;
 
-/// <summary>Класс устройства-периферии.</summary>
+/// <summary>Kind of a peripheral device.</summary>
 public enum GearKind
 {
     Other = 0,

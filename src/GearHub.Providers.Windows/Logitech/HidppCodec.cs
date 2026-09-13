@@ -2,7 +2,7 @@ using GearHub.Core.Models;
 
 namespace GearHub.Providers.Windows.Logitech;
 
-/// <summary>Разобранный ответ HID++.</summary>
+/// <summary>Parsed HID++ response.</summary>
 public readonly record struct HidppResponse(
     byte DeviceIndex,
     byte FeatureIndex,
@@ -12,7 +12,7 @@ public readonly record struct HidppResponse(
     byte ErrorCode,
     byte[] Parameters);
 
-/// <summary>Ответ устройства за приёмником (длинный канал). Кадр ошибки: [0xFF, feature, func_sw, ошибка].</summary>
+/// <summary>Response from a device behind the receiver (long channel). Error frame: [0xFF, feature, func_sw, error].</summary>
 public readonly record struct HidppDeviceReply(
     byte DeviceIndex,
     byte FeatureIndex,
@@ -21,20 +21,20 @@ public readonly record struct HidppDeviceReply(
     byte ErrorCode,
     byte[] Payload);
 
-/// <summary>Низкоуровневые детали протокола HID++ 2.0: сборка запросов, разбор ответов, оценка заряда.</summary>
+/// <summary>Low-level details of the HID++ 2.0 protocol: building requests, parsing replies, estimating charge.</summary>
 public static class HidppCodec
 {
     public const byte ReportIdShort = 0x10;
     public const byte ReportIdLong = 0x11;
     public const byte ErrorFeatureIndex = 0xFF;
 
-    /// <summary>Индекс для устройств, подключённых напрямую (Bluetooth, кабель).</summary>
+    /// <summary>Index for devices connected directly (Bluetooth, cable).</summary>
     public const byte DeviceIndexDirect = 0xFF;
 
     public const int ShortReportLength = 7;
     public const int LongReportLength = 20;
 
-    /// <summary>Короткий запрос: 7 байт, до 3 параметров.</summary>
+    /// <summary>Short request: 7 bytes, up to 3 parameters.</summary>
     public static byte[] BuildShortRequest(
         byte deviceIndex,
         byte featureIndex,
@@ -53,12 +53,12 @@ public static class HidppCodec
         parameter2,
     ];
 
-    /// <summary>SoftwareId как в Solaar: старший бит установлен, чтобы отличать ответы от нотификаций (swId = 0).</summary>
+    /// <summary>SoftwareId as in Solaar: high bit set to distinguish responses from notifications (swId = 0).</summary>
     public const byte SolaarSoftwareId = 0x0B;
 
     /// <summary>
-    /// Длинный запрос: 20 байт, до 16 параметров. Устройства за приёмниками Unifying/Bolt
-    /// отвечают только на длинные кадры 0x11, отправленные в коллекцию usage 0xFF00/0x0002.
+    /// Long request: 20 bytes, up to 16 parameters. Devices behind Unifying/Bolt receivers
+    /// respond only to long frames 0x11 sent to the usage collection 0xFF00/0x0002.
     /// </summary>
     public static byte[] BuildLongRequest(
         byte deviceIndex,
@@ -78,7 +78,7 @@ public static class HidppCodec
         return frame;
     }
 
-    /// <summary>Разбирает ответ устройства (успешный или кадр ошибки 0xFF).</summary>
+    /// <summary>Parses a device reply (successful or the 0xFF error frame).</summary>
     public static bool TryParseDeviceReply(ReadOnlySpan<byte> report, out HidppDeviceReply reply)
     {
         reply = default;
@@ -96,7 +96,7 @@ public static class HidppCodec
 
         if (report[2] == ErrorFeatureIndex)
         {
-            // Ошибка HID++ 2.0: [report, devIdx, 0xFF, feature, func_sw, error, ...].
+            // HID++ 2.0 error: [report, devIdx, 0xFF, feature, func_sw, error, ...].
             if (report.Length < 6)
             {
                 return false;
@@ -157,7 +157,7 @@ public static class HidppCodec
         return true;
     }
 
-    /// <summary>Огрублённый уровень из UNIFIED_BATTERY (0 = критично … 3 = полный).</summary>
+    /// <summary>Coarse level from UNIFIED_BATTERY (0 = critical … 3 = full).</summary>
     public static CoarseBatteryLevel MapLevel(byte level) => level switch
     {
         0 => CoarseBatteryLevel.Empty,
@@ -168,8 +168,8 @@ public static class HidppCodec
     };
 
     /// <summary>
-    /// Грубая оценка заряда по напряжению (кривая одноячеечного Li-ion).
-    /// Для устройств на AA-батарейках значение будет завышенным — в UI это помечается как оценка.
+    /// Rough charge estimate from voltage (single-cell Li-ion curve).
+    /// For devices running on AA batteries the value will be overestimated — the UI marks this as an estimate.
     /// </summary>
     public static int EstimatePercentFromMillivolts(int millivolts)
     {

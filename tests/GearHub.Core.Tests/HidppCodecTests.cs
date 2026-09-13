@@ -38,7 +38,7 @@ public class HidppCodecTests
     [Fact]
     public void TryParseDeviceReply_ParsesFeatureReply()
     {
-        // Ответ getFeature(0x1004) от MX Master: индекс фичи 0x08 в устройстве.
+        // getFeature(0x1004) reply from MX Master: feature index 0x08 on the device.
         var report = new byte[20];
         report[0] = 0x11;
         report[1] = 0x01;
@@ -59,7 +59,7 @@ public class HidppCodecTests
     [Fact]
     public void TryParseDeviceReply_ParsesErrorReply()
     {
-        // Кадр ошибки: [0x11, devIdx, 0xFF, feature, func_sw, error].
+        // Error frame: [0x11, devIdx, 0xFF, feature, func_sw, error].
         byte[] report = [0x11, 0x01, 0xFF, 0x81, 0x0D, 0x06, 0x00];
 
         Assert.True(HidppCodec.TryParseDeviceReply(report, out var reply));

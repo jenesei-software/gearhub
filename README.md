@@ -1,114 +1,158 @@
 # GearHub
 
-Виджет-полоса для Windows внизу экрана: показывает заряд и статус подключения реальных
-устройств — геймпадов, клавиатур, мышей, наушников — независимо от способа подключения.
+A lightweight Windows widget that keeps an eye on your gear: battery level and connection status
+for gamepads, keyboards, mice and headsets — regardless of how they are connected.
 
-## Что умеет (MVP)
+| Full mode | Compact mode |
+| --- | --- |
+| ![Full mode](docs/demo-max.png) | ![Compact mode](docs/demo-min.png) |
 
-- **Xbox-геймпады** (XInput): уровень заряда (пусто/низкий/средний/полный), питание от USB/батарейки/аккумулятор.
-- **Устройства Bluetooth LE** с Battery Service (`GATT 0x180F`): точный процент заряда.
-- **Logitech через HID++**: устройства за приёмниками Unifying/Bolt находятся по connection-нотификациям
-  приёмника (sub_id `0x41`), а также активным ping-ом слотов. Точный процент и реальное имя
-  (`MX Keys`, `MX Master 3S`, ...) читаются HID++ 2.0-запросами через длинный канал приёмника
-  (usage `0xFF00/0x0002`, кадры `0x11`): `0x1004` (UNIFIED_BATTERY) → `0x1000` (BATTERY_STATUS) →
-  `0x1001` (BATTERY_VOLTAGE) → запасной путь HID++ 1.0 (регистры `0x0D`/`0x07`) для старых устройств.
-  Спящее устройство распознаётся ping-ом и явно помечается «устройство спит». Работает параллельно
-  с G HUB и Logi Options+.
-- **Оформление — нативное Windows 11**: светлая/тёмная тема берётся из системной настройки и
-  переключается на лету; используются системные Fluent-цвета и шрифт Segoe UI Variable.
-- **Статусы устройств:**
-  - 🟢 подключено (зелёный),
-  - 🟡 недавно отключено (по умолчанию < 6 ч) или ошибка чтения заряда (жёлтый),
-  - 🔴 давно отключено (красный).
-- **История**: «последний раз видели» сохраняется между запусками (`%APPDATA%\GearHub\state.json`).
-- **Фильтрация мусора**: системные сервисы, энумераторы, виртуальные узлы HID/BT не попадают в список.
-- Сворачивается в трей, не отображается на панели задач.
+| Settings popover | Tray flyout |
+| --- | --- |
+| ![Settings](docs/demo-settings.png) | ![Tray flyout](docs/demo-tray.png) |
 
-## Требования
+## Features
 
-- Windows 10 сборка 19041+ или Windows 11.
-- .NET SDK 10 (только для сборки). Рантайм ставить не нужно при запуске через `dotnet run`.
-- Visual Studio не требуется.
+- **Xbox gamepads** (XInput): charge level (empty/low/medium/full) and power source (USB / AA batteries / rechargeable battery).
+- **Bluetooth LE devices** with the Battery Service (`GATT 0x180F`): exact percentage.
+- **Logitech Lightspeed headsets (G435)**: the dongle broadcasts status frames (every ~6 seconds)
+  with the headset charge and charging state (⚡ next to the percentage) — the widget parses them
+  passively, nothing else to install.
+- **Logitech via HID++**: devices behind Unifying/Bolt receivers are found through the receiver's
+  connection notifications (sub_id `0x41`) and an active slot ping scan. The exact percentage and real name
+  (`MX Keys`, `MX Master 3S`, …) are read with HID++ 2.0 requests over the receiver's long channel
+  (usage `0xFF00/0x0002`, `0x11` frames): `0x1004` (UNIFIED_BATTERY) → `0x1000` (BATTERY_STATUS) →
+  `0x1001` (BATTERY_VOLTAGE) → HID++ 1.0 fallback (registers `0x0D`/`0x07`) for older devices.
+  A sleeping device is detected by ping and clearly marked "device is asleep". Works alongside
+  G HUB and Logi Options+.
+- **Native Windows 11 look**: light/dark theme follows the system setting and switches on the fly; system
+  Fluent colors and the Segoe UI Variable font; the tray icon is a monochrome Windows-style battery —
+  white on a dark taskbar, dark on a light one.
+- **Localization**: the UI matches the Windows display language — English, Russian, German, French,
+  Spanish or Chinese (Simplified); any other language falls back to English. For testing, override it:
+  `$env:GEARHUB_LANG = "en"` before launch.
+- **Device states:** 🟢 connected (green), 🟡 recently offline (default < 6 h) or a battery read error
+  (yellow), 🔴 long offline (red).
+- **History**: "last seen" persists between runs (`%APPDATA%\GearHub\state.json`).
+- **Settings (⚙ button)**: display mode "Max" (cards with the device name and percentage) / "Min"
+  (two-column tiles with a device glyph and percentage), an "always on top" toggle and screen position
+  (four corners or free placement with a remembered position). The settings window behaves like a
+  smart popover: it follows the bar and flips to the other side when there is no room.
+  Settings live in `%APPDATA%\GearHub\settings.json`.
+- **Tray icon with three behaviors**: single click — a mini card with battery levels of all devices
+  (tooltip-like: it stays while the cursor is near the icon or over the card and hides as soon as the
+  cursor leaves, appearing above the taskbar); double click — show/hide the bar; right click — the menu.
+- **Noise filtering**: system services, enumerators and virtual HID/BT nodes never reach the list.
+- Minimizes to the tray and stays off the taskbar.
 
-## Тестовый запуск (по шагам)
+## Installation
 
-Всё делается из терминала, Visual Studio не нужна. Если SDK установлен в профиль пользователя
-(как на этой машине), в VS Code терминал путь уже добавлен через `.vscode/settings.json`.
+1. Open the [Releases](https://github.com/jenesei-software/gearhub/releases) page and download the latest `GearHub-Setup-x.y.z.exe`.
+2. Run it — GearHub installs for the current user only (no administrator rights required) and launches right away.
+3. To remove it later, use the standard Windows way: **Settings → Apps → Installed apps → GearHub → Uninstall**.
+
+The installer is built with [Inno Setup](https://jrsoftware.org/isinfo.php) and published by the
+[release workflow](.github/workflows/release.yml) (manual run from the Actions tab, version bump included).
+
+## Requirements
+
+- Windows 10 build 19041+ or Windows 11.
+- .NET SDK 10 — for building from source only. The installer ships a self-contained build, so no runtime installation is needed.
+
+## Build & run from source
+
+Everything works from a terminal; Visual Studio is not required. If the SDK is installed into your
+user profile (as on many setups), add it to `PATH` first — the VS Code terminal already does this
+via `.vscode/settings.json`.
 
 ```powershell
-# 1. Подготовить окружение (в обычном PowerShell; в терминале VS Code не нужно)
+# 1. Prepare the environment (plain PowerShell; not needed in the VS Code terminal)
 $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
 
-# 2. Собрать и прогнать тесты
+# 2. Build and run the tests
 dotnet build GearHub.slnx -c Debug
 dotnet test GearHub.slnx --no-build
 
-# 3. Запустить виджет
+# 3. Run the widget
 dotnet run --project src/GearHub.App
 ```
 
-Либо запустить уже собранный exe отдельным процессом (не закрывается вместе с терминалом):
+Or start the built exe as a separate process (it will survive the terminal being closed):
 
 ```powershell
-$env:DOTNET_ROOT = "$env:LOCALAPPDATA\Microsoft\dotnet"   # в Program Files только рантайм .NET 8
+$env:DOTNET_ROOT = "$env:LOCALAPPDATA\Microsoft\dotnet"   # Program Files only has the .NET 8 runtime
 Start-Process src\GearHub.App\bin\Debug\net10.0-windows10.0.19041.0\GearHub.exe
 ```
 
-Как пользоваться: полоса висит внизу по центру экрана, устройства — вертикальным списком, иконка — в трее.
-Двойной клик по трею — показать/скрыть, правый клик по карточке — «Игнорировать», кнопка ↻ — обновить сейчас,
-обновление автоматически раз в 30 секунд, выход — через меню трея.
+## Using the widget
 
-## Диагностика Logitech
+The bar floats at the bottom center of the screen, devices are listed vertically, and the icon lives
+in the tray. Tray icon: single click — a mini card with battery levels of all devices (tooltip-like:
+visible while the cursor is near the icon or over the card, gone once the cursor leaves; appears above
+the taskbar), double click — show/hide the bar, right click — the menu. Right click a device card —
+"Ignore"; refresh happens automatically every 30 seconds; exit via the tray menu.
+The ⚙ (settings), ↻ (refresh now) and ✕ (minimize to tray) buttons appear on hover: the widget grows
+to give them room. While scanning, the refresh button spins with "Refreshing…", then shows a checkmark
+and "Updated". The bar can be dragged with the mouse — it never leaves the screen and remembers its position.
+
+## Logitech diagnostics
 
 ```powershell
 dotnet run --project tools/GearHub.HidProbe
 ```
 
-Пробник печатает все HID++ интерфейсы, слоты приёмника (pairing/имя/заряд) и сырые ответы устройств.
-Полезно, когда устройство «не видно»: сразу понятно, что ответило — приёмник, устройство или никто.
+The probe prints all HID++ interfaces, receiver slots (pairing/name/charge) and raw device replies.
+Handy when a device is "invisible": it shows exactly who answered — the receiver, the device, or nobody.
 
-Важно: Logitech-устройства в простое уходят в сон. Виджет определяет это ping-ом и показывает
-«устройство спит». Это нормально: тронь мышь/нажми клавишу — при следующем обновлении
-(или кнопкой ↻) появится точный заряд.
+Note: idle Logitech devices go to sleep. The widget detects that via ping and shows "device is asleep".
+That is normal: touch the mouse / press a key — the next refresh (or the ↻ button) picks up the exact charge.
 
-## Как удалить всё тестовое
+## Uninstall
 
-Ничего в систему не устанавливается: нет служб, драйверов, автозапуска и записей в реестре.
-Удаление — это просто остановить приложение и убрать файлы.
+Installed via the installer? Use the standard Windows way: **Settings → Apps → Installed apps →
+GearHub → Uninstall**. The uninstaller stops the app, removes its files and unregisters itself.
+Your `%APPDATA%\GearHub` data (history and settings) is kept so a reinstall remembers everything —
+delete it manually for a clean slate.
+
+Running from source and want to remove everything test-related:
 
 ```powershell
-# 1. Закрыть приложение (или меню трея → «Выход»)
+# 1. Stop the app (or use tray menu → Exit)
 Stop-Process -Name GearHub -ErrorAction SilentlyContinue
 
-# 2. Удалить историю и настройки виджета
+# 2. Remove widget history and settings
 Remove-Item "$env:APPDATA\GearHub" -Recurse -Force -ErrorAction SilentlyContinue
 
-# 3. Удалить артефакты сборки
+# 3. Remove build artifacts
 dotnet clean GearHub.slnx
 Remove-Item -Recurse -Force .\src\*\bin, .\src\*\obj, .\tests\*\bin, .\tests\*\obj, .\tools\*\bin, .\tools\*\obj -ErrorAction SilentlyContinue
 
-# 4. Опционально — удалить локально установленный .NET SDK
+# 4. Optionally remove the user-local .NET SDK
 Remove-Item "$env:LOCALAPPDATA\Microsoft\dotnet" -Recurse -Force
-# после этого уберите блок terminal.integrated.env.windows из .vscode/settings.json
+# then drop the terminal.integrated.env.windows block from .vscode/settings.json
 ```
 
-## Структура
+## Project structure
 
-| Проект | Назначение |
+| Project | Purpose |
 | --- | --- |
-| `src/GearHub.Core` | Модель, статусная логика, фильтр мусора, история присутствия (без Windows-зависимостей) |
-| `src/GearHub.Providers.Windows` | Источники данных: XInput, Bluetooth LE (GATT), Logitech HID++ |
-| `src/GearHub.App` | WPF-интерфейс: полоса внизу экрана + иконка в трее |
-| `tests/GearHub.Core.Tests` | Юнит-тесты статусов и фильтра |
+| `src/GearHub.Core` | Domain model, status policy, noise filter, presence history (no Windows dependencies) |
+| `src/GearHub.Providers.Windows` | Data sources: XInput, Bluetooth LE (GATT), Logitech HID++ |
+| `src/GearHub.App` | WPF UI: the screen bar and the tray icon |
+| `tests/GearHub.Core.Tests` | Unit tests for the status policy and the filter |
+| `tools/GearHub.HidProbe` | Logitech HID++ diagnostic console |
 
-## x] Logitech HID++: приёмники Unifying/Bolt, чтение имён и заряда, обработка спящих устройств.
+## Roadmap
 
-- [x] Подписка на connection-нотификации (`0x41`) и ping-скан слотов приёмника: устройства видны даже когда спят (тип + WPID).
-- [x] Точный заряд и реальное имя устройства через длинный канал (`0xFF00/0x0002`, кадры `0x11`): `0x1004`/`0x1000`/`0x1001` + `DEVICE_NAME` `0x0005`. Проверено на MX Keys и MX Master 3S рядом с Logi Options+.
-- [ ] G435 Lightspeed (Centurion-протокол): донгл стримит телеметрию кадрами `0x50`; нужна проверка
-  с включёнными наушниками и реализация минимального Centurion-клиента.
-- [ ] Bluetooth Classic (наушники): исследование источника батареи, который использует Параметры Windows.
-- [ ] Sony DualSense/DualShock — разбор HID-отчётов.
-- [ ] Стабильные ID Xbox-геймпадов через Container ID (сейчас — номер слота).
-- [ ] Подписка на BLE-нотификации `0x2A19` вместо периодического чтения.
-- [ ] Настройки: пороги цветов, автозапуск, «закрепить»/«игнорировать» устройство.
+- [x] XInput (charge level), Bluetooth LE GATT `0x180F`, presence history, noise filter.
+- [x] Logitech HID++: Unifying/Bolt receivers, device names and charge, sleeping device handling.
+- [x] Connection notifications (`0x41`) and receiver slot ping scan: devices are visible even when asleep (type + WPID).
+- [x] Exact charge and real device name over the long channel (`0xFF00/0x0002`, `0x11` frames): `0x1004`/`0x1000`/`0x1001` + `DEVICE_NAME` `0x0005`. Verified with MX Keys and MX Master 3S next to Logi Options+.
+- [x] G435 Lightspeed: passive parsing of dongle status frames (1/256 charge format, "≈" marker).
+- [x] G435: charging state from the dongle frame (bit `0x02`: `01` — not charging, `03` — charging).
+- [ ] G435: calibrate percentage accuracy against G HUB.
+- [ ] Bluetooth Classic (headsets): research the battery source used by Windows Settings.
+- [ ] Sony DualSense/DualShock — HID report parsing.
+- [ ] Stable Xbox gamepad IDs via Container ID (currently the slot number).
+- [ ] Subscribe to BLE `0x2A19` notifications instead of periodic reads.
+- [ ] Settings: color thresholds, autostart, pin/ignore a device.

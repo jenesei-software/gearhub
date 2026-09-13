@@ -5,7 +5,7 @@ using GearHub.Core.Persistence;
 namespace GearHub.Core.Services;
 
 /// <summary>
-/// Собирает данные всех провайдеров, ведёт историю присутствия и вычисляет статусы устройств.
+/// Collects data from all providers, keeps presence history, and computes device statuses.
 /// </summary>
 public sealed class GearHubService
 {
@@ -30,7 +30,7 @@ public sealed class GearHubService
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    /// <summary>Один цикл сканирования: опрос провайдеров → merge → статусы.</summary>
+    /// <summary>One scan cycle: poll providers → merge → statuses.</summary>
     public async Task<GearSnapshot> ScanAsync(CancellationToken cancellationToken = default)
     {
         await _scanGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -44,7 +44,7 @@ public sealed class GearHubService
         }
     }
 
-    /// <summary>Скрыть устройство из виджета (или вернуть обратно).</summary>
+    /// <summary>Hide a device from the widget (or bring it back).</summary>
     public void SetIgnored(string deviceId, bool ignored = true) => _store.SetIgnored(deviceId, ignored);
 
     private async Task<GearSnapshot> ScanCoreAsync(CancellationToken cancellationToken)
@@ -86,7 +86,7 @@ public sealed class GearHubService
             var previous = records.GetValueOrDefault(observation.DeviceId);
             var lastSeen = observation.IsConnected ? now : previous?.LastSeenUtc ?? now;
 
-            // Если устройство «спит» и заряд сейчас не прочитать — оставляем последнее известное значение.
+            // If the device is "asleep" and the battery cannot be read right now — keep the last known value.
             var battery = observation.Battery.IsAvailable
                 ? observation.Battery
                 : previous?.Battery ?? BatteryReading.Unknown;
@@ -109,7 +109,7 @@ public sealed class GearHubService
                 _policy.Evaluate(observation.IsConnected, observation.HasFault, lastSeen, now)));
         }
 
-        // Устройства, которых сейчас нет среди наблюдений: берём из истории и красим в жёлтый/красный.
+        // Devices not present in the current observations: take them from history and paint them yellow/red.
         foreach (var record in records.Values)
         {
             if (observedIds.Contains(record.DeviceId))

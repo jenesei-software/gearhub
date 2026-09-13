@@ -1,6 +1,6 @@
 namespace GearHub.Core.Models;
 
-/// <summary>Уровень заряда, который умеют отдавать некоторые устройства (например, XInput).</summary>
+/// <summary>Coarse battery level that some devices report (for example, XInput).</summary>
 public enum CoarseBatteryLevel
 {
     Unknown = 0,
@@ -11,7 +11,7 @@ public enum CoarseBatteryLevel
     Full,
 }
 
-/// <summary>Заряд устройства. Процент известен не всегда — тогда заполнен только <see cref="Coarse"/>.</summary>
+/// <summary>Device battery. The percentage is not always known — then only <see cref="Coarse"/> is set.</summary>
 public sealed record BatteryReading
 {
     public static BatteryReading Unknown { get; } = new();

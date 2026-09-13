@@ -1,10 +1,11 @@
+using GearHub.Core.Localization;
 using HidSharp;
 
 namespace GearHub.Providers.Windows.Logitech;
 
 /// <summary>
-/// Транспорт HID++: короткий канал приёмника (usage 0xFF00/0x0001, отчёты 0x10 — регистры и
-/// нотификации) и длинный канал устройств (usage 0xFF00/0x0002, отчёты 0x11 — HID++ 2.0-запросы).
+/// HID++ transport: the receiver's short channel (usage 0xFF00/0x0001, reports 0x10 — registers and
+/// notifications) and the devices' long channel (usage 0xFF00/0x0002, reports 0x11 — HID++ 2.0 requests).
 /// </summary>
 public sealed class HidppTransport : IDisposable
 {
@@ -20,8 +21,8 @@ public sealed class HidppTransport : IDisposable
     private readonly object _gate = new();
 
     /// <summary>
-    /// Любое прочитанное сообщение, включая нотификации, которые не являются ответом на запрос.
-    /// Провайдер через это событие видит то, что иначе было бы отброшено при разборе ответов.
+    /// Any message read, including notifications that are not a response to a request.
+    /// Through this event the provider sees what would otherwise be discarded while parsing replies.
     /// </summary>
     public event Action<byte[]>? MessageRead;
 
@@ -44,8 +45,8 @@ public sealed class HidppTransport : IDisposable
     public string ProductName { get; }
 
     /// <summary>
-    /// Длинный канал (usage 0xFF00/0x0002): только через него устройства за приёмником отвечают
-    /// на HID++ 2.0-запросы длинными кадрами 0x11. Есть у приёмников Unifying/Bolt.
+    /// Long channel (usage 0xFF00/0x0002): only through it do devices behind the receiver respond
+    /// to HID++ 2.0 requests with long frames 0x11. Present on Unifying/Bolt receivers.
     /// </summary>
     public bool HasDeviceChannel => _longStream is not null;
 
@@ -53,12 +54,12 @@ public sealed class HidppTransport : IDisposable
 
     public int MaxOutputReportLength => _device.GetMaxOutputReportLength();
 
-    /// <summary>Приёмники Unifying/Bolt представляются как «USB Receiver» и проксируют до 6 устройств.</summary>
+    /// <summary>Unifying/Bolt receivers present themselves as "USB Receiver" and proxy up to 6 devices.</summary>
     public bool LooksLikeReceiver => ProductName.Contains("receiver", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Отправляет запрос и возвращает первый ответ, адресованный этому же устройству.
-    /// Подходит для HID++ 1.0-запросов (регистры), где нет SoftwareId.
+    /// Sends a request and returns the first reply addressed to the same device.
+    /// Suitable for HID++ 1.0 requests (registers), where there is no SoftwareId.
     /// </summary>
     public bool TryExchange(byte[] request, byte deviceIndex, TimeSpan timeout, out byte[] reply)
     {
@@ -110,9 +111,9 @@ public sealed class HidppTransport : IDisposable
     }
 
     /// <summary>
-    /// HID++ 2.0-запрос устройству за приёмником: длинный кадр 0x11 в канал 0xFF00/0x0002.
-    /// Ответ ищется по индексу устройства, фиче и байту функции (function &lt;&lt; 4 | 0x0B),
-    /// включая кадр ошибки 0xFF. Пока ждём, продолжаем читать и короткий канал (нотификации).
+    /// HID++ 2.0 request to a device behind the receiver: a long frame 0x11 to channel 0xFF00/0x0002.
+    /// The reply is matched by device index, feature, and function byte (function &lt;&lt; 4 | 0x0B),
+    /// including the 0xFF error frame. While waiting, we keep reading the short channel (notifications).
     /// </summary>
     public bool TryDeviceCall(
         byte deviceIndex,
@@ -172,7 +173,7 @@ public sealed class HidppTransport : IDisposable
         }
     }
 
-    /// <summary>Чтение из длинного канала (для слушателя нотификаций устройств).</summary>
+    /// <summary>Read from the long channel (for the device notification listener).</summary>
     public bool TryReadRawLong(byte[] buffer, TimeSpan timeout, out byte[] data)
         => TryReadRawFrom(_longStream, buffer, timeout, out data);
 
@@ -230,7 +231,7 @@ public sealed class HidppTransport : IDisposable
         }
     }
 
-    /// <summary>Фоновое чтение: ждёт отчёт заданное время и возвращает его как есть (для слушателя нотификаций).</summary>
+    /// <summary>Background read: waits for a report for the given time and returns it as is (for the notification listener).</summary>
     public bool TryReadRaw(byte[] buffer, TimeSpan timeout, out byte[] data)
     {
         lock (_gate)
@@ -257,7 +258,7 @@ public sealed class HidppTransport : IDisposable
         }
     }
 
-    /// <summary>Диагностика: читает всё, что уже накопилось во входном буфере.</summary>
+    /// <summary>Diagnostics: reads everything that has already accumulated in the input buffer.</summary>
     public void DrainInput()
     {
         lock (_gate)
@@ -285,7 +286,7 @@ public sealed class HidppTransport : IDisposable
         }
     }
 
-    /// <summary>Диагностика: отправляет запрос и собирает все ответы за отведённое время.</summary>
+    /// <summary>Diagnostics: sends a request and collects all replies within the allotted time.</summary>
     public IReadOnlyList<byte[]> CollectReplies(byte[] request, TimeSpan timeout, int maxReplies = 6)
     {
         lock (_gate)
@@ -330,7 +331,7 @@ public sealed class HidppTransport : IDisposable
         }
     }
 
-    /// <summary>Диагностика: отправляет сырой отчёт и возвращает первый ответ как есть.</summary>
+    /// <summary>Diagnostics: sends a raw report and returns the first reply as is.</summary>
     public bool TryRawExchange(byte[] request, TimeSpan timeout, out byte[] response, out string? error)
     {
         lock (_gate)
@@ -374,14 +375,14 @@ public sealed class HidppTransport : IDisposable
                 }
             }
 
-            error ??= "таймаут: ответа нет";
+            error ??= Loc.Get("TimeoutNoReply");
             return false;
         }
     }
 
     /// <summary>
-    /// Все HID++-интерфейсы Logitech. Для приёмников открываются оба канала:
-    /// короткий (0xFF00/0x0001) для приёмника и нотификаций и длинный (0xFF00/0x0002) для устройств.
+    /// All Logitech HID++ interfaces. For receivers, both channels are opened:
+    /// the short one (0xFF00/0x0001) for the receiver and notifications, and the long one (0xFF00/0x0002) for devices.
     /// </summary>
     public static IReadOnlyList<HidppTransport> FindAll()
     {
@@ -403,7 +404,7 @@ public sealed class HidppTransport : IDisposable
             }
             catch
             {
-                // Устройство могло отключиться между перечислением и разбором дескриптора.
+                // The device may have disconnected between enumeration and descriptor parsing.
             }
         }
 
@@ -428,14 +429,14 @@ public sealed class HidppTransport : IDisposable
             }
             catch
             {
-                // Устройство могло отключиться между перечислением и открытием.
+                // The device may have disconnected between enumeration and opening.
             }
         }
 
         return transports;
     }
 
-    /// <summary>0 — не vendor-коллекция HID++; иначе usage (0x0001 короткий, 0x0002 длинный).</summary>
+    /// <summary>0 — not a HID++ vendor collection; otherwise the usage (0x0001 short, 0x0002 long).</summary>
     private static int ClassifyVendorCollection(HidDevice device)
     {
         var descriptor = device.GetReportDescriptor();
@@ -460,7 +461,7 @@ public sealed class HidppTransport : IDisposable
         return 0;
     }
 
-    /// <summary>Ключ физического интерфейса: пути коллекций отличаются хвостом «&amp;colXX».</summary>
+    /// <summary>Physical interface key: collection paths differ by the "&amp;colXX" suffix.</summary>
     private static string GroupKey(string path)
     {
         var index = path.IndexOf("&col", StringComparison.OrdinalIgnoreCase);
@@ -468,8 +469,8 @@ public sealed class HidppTransport : IDisposable
     }
 
     /// <summary>
-    /// Отправляет короткий запрос и ждёт ответ от того же устройства.
-    /// Посторонние отчёты (нотификации приёмника и т.п.) пропускаются.
+    /// Sends a short request and waits for a reply from the same device.
+    /// Unrelated reports (receiver notifications, etc.) are skipped.
     /// </summary>
     public bool TrySend(
         byte deviceIndex,

@@ -1,11 +1,12 @@
 using GearHub.Core.Abstractions;
+using GearHub.Core.Localization;
 using GearHub.Core.Models;
 
 namespace GearHub.Providers.Windows.XInput;
 
 /// <summary>
-/// Xbox-геймпады: подключение и заряд через XInput.
-/// XInput отдаёт только огрублённый уровень (пусто/низкий/средний/полный), без процентов.
+/// Xbox gamepads: connection and charge via XInput.
+/// XInput only reports a coarse level (empty/low/medium/full), without percentages.
 /// </summary>
 public sealed class XInputGearProvider : IGearProvider
 {
@@ -39,7 +40,7 @@ public sealed class XInputGearProvider : IGearProvider
             devices.Add(new GearObservation
             {
                 DeviceId = $"xinput:{slot}",
-                Name = $"Xbox-геймпад (слот {slot + 1})",
+                Name = Loc.Format("XboxGamepad", slot + 1),
                 Source = "XInput",
                 Kind = GearKind.Gamepad,
                 IsConnected = true,
@@ -53,7 +54,7 @@ public sealed class XInputGearProvider : IGearProvider
 
     private static (BatteryReading Battery, string? Detail) MapBattery(XInputBatteryInformation info) => info.BatteryType switch
     {
-        XInputNative.BatteryTypeWired => (BatteryReading.Unknown, "Питание от USB"),
+        XInputNative.BatteryTypeWired => (BatteryReading.Unknown, Loc.Get("UsbPower")),
         XInputNative.BatteryTypeDisconnected => (BatteryReading.Unknown, null),
         _ => (
             new BatteryReading
@@ -67,6 +68,6 @@ public sealed class XInputGearProvider : IGearProvider
                     _ => CoarseBatteryLevel.Unknown,
                 },
             },
-            info.BatteryType == XInputNative.BatteryTypeAlkaline ? "Батарейки AA" : "Аккумулятор"),
+            info.BatteryType == XInputNative.BatteryTypeAlkaline ? Loc.Get("BatteriesAA") : Loc.Get("RechargeableBattery")),
     };
 }

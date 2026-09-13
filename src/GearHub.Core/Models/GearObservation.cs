@@ -1,31 +1,31 @@
 namespace GearHub.Core.Models;
 
-/// <summary>Сырые данные об устройстве, которые провайдер получил в ходе сканирования.</summary>
+/// <summary>Raw device data a provider obtained during a scan.</summary>
 public sealed record GearObservation
 {
-    /// <summary>Стабильный идентификатор, например <c>xinput:0</c> или <c>ble:Bluetooth#...</c>.</summary>
+    /// <summary>Stable identifier, e.g. <c>xinput:0</c> or <c>ble:Bluetooth#...</c>.</summary>
     public required string DeviceId { get; init; }
 
     public required string Name { get; init; }
 
-    /// <summary>Источник данных: «XInput», «Bluetooth LE» и т.п.</summary>
+    /// <summary>Data source: "XInput", "Bluetooth LE", etc.</summary>
     public required string Source { get; init; }
 
     public GearKind Kind { get; init; } = GearKind.Other;
 
     public bool IsConnected { get; init; } = true;
 
-    /// <summary>True, если устройство подключено, но провайдер не смог прочитать данные о нём.</summary>
+    /// <summary>True if the device is connected but the provider could not read its data.</summary>
     public bool HasFault { get; init; }
 
     /// <summary>
-    /// True для заведомо реальных устройств, найденных достоверным способом (например, за приёмником Logitech).
-    /// Такие устройства показываются в виджете, даже если заряд и тип неизвестны.
+    /// True for definitely real devices found in a reliable way (for example, behind a Logitech receiver).
+    /// Such devices are shown in the widget even if battery and kind are unknown.
     /// </summary>
     public bool IsTrusted { get; init; }
 
     public BatteryReading Battery { get; init; } = BatteryReading.Unknown;
 
-    /// <summary>Произвольная подробность для UI: «Питание от USB», «Батарейки AA» и т.п.</summary>
+    /// <summary>Free-form detail for the UI: "USB power", "AA batteries", etc.</summary>
     public string? Detail { get; init; }
 }

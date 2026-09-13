@@ -2,7 +2,7 @@ using GearHub.Core.Models;
 
 namespace GearHub.Core.Persistence;
 
-/// <summary>Сохранённое состояние устройства: когда его последний раз видели подключённым и с каким зарядом.</summary>
+/// <summary>Persisted device state: when it was last seen connected and with what battery level.</summary>
 public sealed record GearPresenceRecord
 {
     public required string DeviceId { get; init; }

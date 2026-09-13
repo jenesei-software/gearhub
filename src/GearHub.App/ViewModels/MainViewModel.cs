@@ -1,34 +1,72 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using GearHub.App.Settings;
+using GearHub.Core.Localization;
 using GearHub.Core.Models;
 using GearHub.Core.Services;
 
 namespace GearHub.App.ViewModels;
 
-/// <summary>Состояние полосы GearHub: список устройств и периодическое обновление.</summary>
+/// <summary>GearHub bar state: device list and periodic refresh.</summary>
 public sealed partial class MainViewModel : ObservableObject
 {
     private readonly GearHubService _service;
     private readonly DispatcherTimer _timer;
+    private readonly DispatcherTimer _refreshFeedbackTimer;
     private readonly Dictionary<string, DeviceViewModel> _byId = new(StringComparer.Ordinal);
 
-    public MainViewModel(GearHubService service, TimeSpan? refreshInterval = null)
+    public MainViewModel(GearHubService service, AppSettings settings, TimeSpan? refreshInterval = null)
     {
         _service = service;
+        Settings = settings;
+        Settings.PropertyChanged += OnSettingsChanged;
         Devices = [];
 
         _timer = new DispatcherTimer { Interval = refreshInterval ?? TimeSpan.FromSeconds(30) };
         _timer.Tick += async (_, _) => await RefreshAsync();
+
+        _refreshFeedbackTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+        _refreshFeedbackTimer.Tick += (_, _) =>
+        {
+            _refreshFeedbackTimer.Stop();
+            RefreshDone = false;
+            RefreshStatusText = string.Empty;
+        };
     }
 
+    public AppSettings Settings { get; }
+
+    /// <summary>Compact mode: device glyph and percentage instead of cards.</summary>
+    public bool IsCompact => Settings.Mode == DisplayMode.Min;
+
     public ObservableCollection<DeviceViewModel> Devices { get; }
+
+    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppSettings.Mode))
+        {
+            OnPropertyChanged(nameof(IsCompact));
+        }
+    }
 
     [ObservableProperty]
     private bool _hasDevices;
 
+    /// <summary>Refresh in progress — the button spins and is disabled.</summary>
     [ObservableProperty]
-    private string _statusLine = "Поиск устройств…";
+    private bool _isRefreshing;
+
+    /// <summary>Refresh just finished — show the checkmark and the label.</summary>
+    [ObservableProperty]
+    private bool _refreshDone;
+
+    [ObservableProperty]
+    private string _refreshStatusText = string.Empty;
+
+    [ObservableProperty]
+    private string _statusLine = Loc.Get("StatusSearching");
 
     public void Start()
     {
@@ -40,6 +78,15 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task RefreshAsync()
     {
+        if (IsRefreshing)
+        {
+            return;
+        }
+
+        IsRefreshing = true;
+        RefreshDone = false;
+        RefreshStatusText = Loc.Get("RefreshBusy");
+
         try
         {
             var snapshot = await _service.ScanAsync();
@@ -47,17 +94,25 @@ public sealed partial class MainViewModel : ObservableObject
 
             var online = snapshot.Devices.Count(device => device.Status == GearStatus.Online);
             StatusLine = Devices.Count == 0
-                ? "Устройства не найдены"
-                : $"{Devices.Count} устр. · онлайн: {online}";
+                ? Loc.Get("StatusNoDevices")
+                : Loc.Format("StatusCount", Devices.Count, online);
 
             if (snapshot.ProviderErrors.Count > 0)
             {
-                StatusLine += " · ошибки: " + string.Join("; ", snapshot.ProviderErrors);
+                StatusLine += Loc.Get("StatusErrors") + string.Join("; ", snapshot.ProviderErrors);
             }
         }
         catch (Exception ex)
         {
-            StatusLine = "Ошибка сканирования: " + ex.Message;
+            StatusLine = Loc.Format("StatusScanError", ex.Message);
+        }
+        finally
+        {
+            IsRefreshing = false;
+            RefreshDone = true;
+            RefreshStatusText = Loc.Get("RefreshDone");
+            _refreshFeedbackTimer.Stop();
+            _refreshFeedbackTimer.Start();
         }
     }
 

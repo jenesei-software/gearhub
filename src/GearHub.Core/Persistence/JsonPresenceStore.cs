@@ -5,7 +5,7 @@ using GearHub.Core.Models;
 
 namespace GearHub.Core.Persistence;
 
-/// <summary>Документ файла состояния (формат <c>state.json</c>).</summary>
+/// <summary>State file document (the <c>state.json</c> format).</summary>
 public sealed record PresenceStoreDocument
 {
     public List<GearPresenceRecord> Records { get; init; } = [];
@@ -13,7 +13,7 @@ public sealed record PresenceStoreDocument
     public List<string> Ignored { get; init; } = [];
 }
 
-/// <summary>Простое JSON-хранилище с атомарной записью. Для MVP достаточно; при росте — заменить на SQLite.</summary>
+/// <summary>Simple JSON store with atomic writes. Good enough for the MVP; replace with SQLite as it grows.</summary>
 public sealed class JsonPresenceStore : IPresenceStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -118,7 +118,7 @@ public sealed class JsonPresenceStore : IPresenceStore
         }
         catch
         {
-            // Повреждённый файл состояния не должен мешать запуску — начинаем с чистой истории.
+            // A corrupted state file must not prevent startup — start with a clean history.
         }
     }
 

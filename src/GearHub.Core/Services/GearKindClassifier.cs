@@ -2,7 +2,7 @@ using GearHub.Core.Models;
 
 namespace GearHub.Core.Services;
 
-/// <summary>Эвристика «что это за устройство» по имени, которое отдаёт Windows.</summary>
+/// <summary>Heuristic for "what kind of device is this" based on the name Windows reports.</summary>
 public static class GearKindClassifier
 {
     private static readonly string[] GamepadHints =

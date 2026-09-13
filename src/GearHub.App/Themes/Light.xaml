@@ -1,7 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Светлая тема Windows 11 (цвета статусов — системные Fluent-палитры) -->
+    <!-- Windows 11 light theme (status colors come from the system Fluent palettes) -->
     <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#F2F9F9F9" />
     <SolidColorBrush x:Key="PanelBorderBrush" Color="#17000000" />
     <SolidColorBrush x:Key="CardBackgroundBrush" Color="#B3FFFFFF" />
@@ -14,6 +14,7 @@
     <SolidColorBrush x:Key="AccentGreenBrush" Color="#0F7B0F" />
     <SolidColorBrush x:Key="AccentYellowBrush" Color="#9D5D00" />
     <SolidColorBrush x:Key="AccentRedBrush" Color="#C42B1C" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#005FB8" />
 
     <DropShadowEffect x:Key="PanelShadow" BlurRadius="24" ShadowDepth="2" Opacity="0.24" Color="#000000" />
 

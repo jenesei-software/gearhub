@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace GearHub.Providers.Windows.XInput;
 
-/// <summary>P/Invoke-обёртка над XInput 1.4 — даёт доступ к Xbox-геймпадам и их заряду.</summary>
+/// <summary>P/Invoke wrapper over XInput 1.4 — provides access to Xbox gamepads and their charge.</summary>
 internal static class XInputNative
 {
     public const int MaxSlots = 4;

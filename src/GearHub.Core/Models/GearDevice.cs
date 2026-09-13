@@ -1,6 +1,6 @@
 namespace GearHub.Core.Models;
 
-/// <summary>Итоговое состояние устройства, которое отображается в виджете.</summary>
+/// <summary>Final device state displayed in the widget.</summary>
 public sealed record GearDevice
 {
     public required string DeviceId { get; init; }

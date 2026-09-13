@@ -1,14 +1,14 @@
 namespace GearHub.Core.Models;
 
-/// <summary>Цветовой статус устройства в виджете.</summary>
+/// <summary>Color status of a device in the widget.</summary>
 public enum GearStatus
 {
-    /// <summary>Зелёный: устройство подключено сейчас.</summary>
+    /// <summary>Green: the device is connected right now.</summary>
     Online = 0,
 
-    /// <summary>Жёлтый: недавно отключено или что-то не так (ошибка чтения заряда).</summary>
+    /// <summary>Yellow: recently offline or something is wrong (battery read error).</summary>
     Attention,
 
-    /// <summary>Красный: давно отключено.</summary>
+    /// <summary>Red: offline for a long time.</summary>
     Lost,
 }

@@ -9,3 +9,7 @@ obj/
 *.user
 TestResults/
 artifacts/
+
+# Release pipeline
+Output/
+publish/

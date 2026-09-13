@@ -3,8 +3,8 @@ using GearHub.Core.Models;
 namespace GearHub.Core.Services;
 
 /// <summary>
-/// Отсеивает системный «мусор»: сервисы BLE, энумераторы, виртуальные узлы HID и т.п.
-/// Показывает только то, что похоже на реальную периферию: известный класс устройства или есть данные о заряде.
+/// Filters out system "junk": BLE services, enumerators, virtual HID nodes, etc.
+/// Shows only what looks like real peripherals: a known device kind or battery data present.
 /// </summary>
 public sealed class DeviceFilter
 {
@@ -62,8 +62,8 @@ public sealed class DeviceFilter
             return true;
         }
 
-        // Устройство неизвестного класса без заряда и без ошибок — почти наверняка служебный узел.
-        // Исключение: устройства, найденные достоверным способом (IsTrusted), — их показываем всегда.
+        // A device of unknown kind with no battery and no faults is almost certainly a service node.
+        // Exception: devices found in a reliable way (IsTrusted) — those are always shown.
         if (device.Kind == GearKind.Other && !device.Battery.IsAvailable && !device.HasFault && !device.IsTrusted)
         {
             return true;

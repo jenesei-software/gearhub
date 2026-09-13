@@ -1,4 +1,5 @@
 using GearHub.Core.Abstractions;
+using GearHub.Core.Localization;
 using GearHub.Core.Models;
 using GearHub.Core.Services;
 using Windows.Devices.Bluetooth;
@@ -9,9 +10,9 @@ using Windows.Storage.Streams;
 namespace GearHub.Providers.Windows.Bluetooth;
 
 /// <summary>
-/// Bluetooth-устройства с Battery Service (GATT 0x180F / characteristic 0x2A19).
-/// Так отдают заряд многие BLE-мыши, клавиатуры и часть наушников.
-/// Устройства без этой службы показываются без процента — это не ошибка.
+/// Bluetooth devices with Battery Service (GATT 0x180F / characteristic 0x2A19).
+/// This is how many BLE mice, keyboards, and some headsets report their charge.
+/// Devices without this service are shown without a percentage — this is not an error.
 /// </summary>
 public sealed class BleGattBatteryProvider : IGearProvider, IDisposable
 {
@@ -44,7 +45,7 @@ public sealed class BleGattBatteryProvider : IGearProvider, IDisposable
                     continue;
                 }
 
-                var name = FirstNonEmpty(info.Name, device.Name) ?? "Bluetooth-устройство";
+                var name = FirstNonEmpty(info.Name, device.Name) ?? Loc.Get("BluetoothDevice");
                 var probe = await TryReadBatteryAsync(device);
 
                 result.Add(new GearObservation
@@ -65,7 +66,7 @@ public sealed class BleGattBatteryProvider : IGearProvider, IDisposable
             }
             catch
             {
-                // Одно проблемное устройство не должно ломать весь скан.
+                // A single problematic device must not break the whole scan.
             }
         }
 
@@ -114,7 +115,7 @@ public sealed class BleGattBatteryProvider : IGearProvider, IDisposable
         }
         catch
         {
-            // Классический Bluetooth (не LE) или GATT недоступен — данных о заряде просто нет.
+            // Classic Bluetooth (not LE) or GATT unavailable — there is simply no charge data.
             return BatteryProbe.NoData;
         }
 
@@ -138,7 +139,7 @@ public sealed class BleGattBatteryProvider : IGearProvider, IDisposable
             var read = await characteristics.Characteristics[0].ReadValueAsync(BluetoothCacheMode.Uncached);
             if (read.Status != GattCommunicationStatus.Success)
             {
-                return BatteryProbe.Faulted("Не удалось прочитать заряд");
+                return BatteryProbe.Faulted(Loc.Get("BatteryReadFailed"));
             }
 
             var level = DataReader.FromBuffer(read.Value).ReadByte();
@@ -146,7 +147,7 @@ public sealed class BleGattBatteryProvider : IGearProvider, IDisposable
         }
         catch (Exception ex)
         {
-            return BatteryProbe.Faulted($"Ошибка GATT: {ex.Message}");
+            return BatteryProbe.Faulted(Loc.Format("GattError", ex.Message));
         }
     }
 

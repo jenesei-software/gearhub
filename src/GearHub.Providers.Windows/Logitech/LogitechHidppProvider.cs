@@ -1,31 +1,32 @@
 using System.Collections.Concurrent;
 using System.Text;
 using GearHub.Core.Abstractions;
+using GearHub.Core.Localization;
 using GearHub.Core.Models;
 using GearHub.Core.Services;
 
 namespace GearHub.Providers.Windows.Logitech;
 
 /// <summary>
-/// Logitech через HID++.
-/// Нотификации приёмника (sub_id 0x41) дают список спаренных устройств и их WPID.
-/// Заряд читается HID++ 2.0-запросами через длинный канал приёмника (0xFF00/0x0002, кадры 0x11):
-/// UNIFIED_BATTERY 0x1004 → BATTERY_STATUS 0x1000 → BATTERY_VOLTAGE 0x1001; перед опросом — ping.
-/// У старых устройств есть запасной путь через регистры HID++ 1.0 (0x0D/0x07).
+/// Logitech over HID++.
+/// Receiver notifications (sub_id 0x41) provide the list of paired devices and their WPID.
+/// Charge is read via HID++ 2.0 requests through the receiver's long channel (0xFF00/0x0002, frames 0x11):
+/// UNIFIED_BATTERY 0x1004 → BATTERY_STATUS 0x1000 → BATTERY_VOLTAGE 0x1001; ping before polling.
+/// Older devices have a fallback path through HID++ 1.0 registers (0x0D/0x07).
 /// </summary>
 public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 {
-    /// <summary>SoftwareId как в Solaar: старший бит установлен, чтобы отличать ответы от нотификаций (swId = 0).</summary>
+    /// <summary>SoftwareId as in Solaar: high bit set to distinguish responses from notifications (swId = 0).</summary>
     private const byte SoftwareId = 0x0B;
 
     private const byte DeviceIndexReceiver = 0xFF;
     private const byte RootFeatureIndex = 0x00;
     private const byte SubIdConnectionNotification = 0x41;
 
-    /// <summary>Псевдо-индекс для устройства Lightspeed-донгла (G435): у него нет слотов приёмника.</summary>
+    /// <summary>Pseudo-index for the Lightspeed dongle device (G435): it has no receiver slots.</summary>
     private const byte HeadsetDeviceIndex = 0x01;
 
-    /// <summary>Сколько без кадров от донгла считаем наушники отключёнными.</summary>
+    /// <summary>How long without dongle frames before the headset is considered disconnected.</summary>
     private static readonly TimeSpan HeadsetSilenceTimeout = TimeSpan.FromSeconds(20);
 
     private const ushort RegisterReceiverConnection = 0x02;
@@ -33,9 +34,9 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
     private const ushort RegisterInfoRequest = 0x83B5;
 
     private const ushort FeatureDeviceName = 0x0005;
-    private const ushort FeatureBatteryStatus = 0x1000;   // [уровень%, следующий%, статус]
-    private const ushort FeatureBatteryVoltage = 0x1001;  // [напряжение BE, флаги]
-    private const ushort FeatureUnifiedBattery = 0x1004;  // [дискрет%, огрублённый уровень, статус]
+    private const ushort FeatureBatteryStatus = 0x1000;   // [level %, next %, status]
+    private const ushort FeatureBatteryVoltage = 0x1001;  // [voltage BE, flags]
+    private const ushort FeatureUnifiedBattery = 0x1004;  // [discrete %, coarse level, status]
 
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan PingTimeout = TimeSpan.FromMilliseconds(300);
@@ -91,7 +92,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
             {
                 if (transport.LooksLikeReceiver)
                 {
-                    // Просим приёмник разослать актуальную информацию о связи с устройствами.
+                    // Ask the receiver to broadcast up-to-date connection information for its devices.
                     _ = transport.TryExchange(
                         WriteRegister(DeviceIndexReceiver, RegisterReceiverConnection, [0x02]),
                         DeviceIndexReceiver,
@@ -108,10 +109,10 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
             }
         }
 
-        // После «дёрга» приёмники присылают нотификации о связи и заряде — собираем их.
+        // After the nudge, receivers send connection and charge notifications — collect them.
         CollectNotifications(NotificationWindow);
 
-        // Нотификацию легко пропустить (устройство сменило канал и т.п.): проверяем слоты ping-ом.
+        // A notification is easy to miss (the device switched channels, etc.): probe the slots with a ping.
         foreach (var transport in _transports)
         {
             if (!transport.LooksLikeReceiver || !transport.HasDeviceChannel)
@@ -152,14 +153,14 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
             }
             catch
             {
-                // Одно устройство не должно ломать весь скан.
+                // A single device must not break the whole scan.
             }
         }
 
         return results;
     }
 
-    /// <summary>Устройство, подключённое напрямую (Bluetooth/кабель): уведомлений приёмника для него нет.</summary>
+    /// <summary>A device connected directly (Bluetooth/cable): there are no receiver notifications for it.</summary>
     private void TrySeedDirectDevice(HidppTransport transport)
     {
         var key = DeviceKey(transport, HidppCodec.DeviceIndexDirect);
@@ -230,7 +231,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
         return true;
     }
 
-    /// <summary>Включает в устройстве нотификации о заряде (BATTERY_STATUS = 0x100000). True — подтверждено устройством.</summary>
+    /// <summary>Enables charge notifications on the device (BATTERY_STATUS = 0x100000). True — confirmed by the device.</summary>
     private static bool TryEnableBatteryNotifications(LiveDevice live)
     {
         if (!live.Transport.TryExchange(
@@ -247,7 +248,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
     private static GearObservation? BuildObservation(LiveDevice live)
     {
-        // Безымянные устройства не показываем: «Logitech-устройство 1» пользователю ничего не говорит.
+        // Do not show unnamed devices: "Logitech device 1" tells the user nothing.
         var name = live.Name ?? KindName(live.Kind);
         if (name is null)
         {
@@ -278,11 +279,11 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
         }
         else if (live.LastProbeAnswered == false)
         {
-            parts.Add("устройство спит");
+            parts.Add(Loc.Get("DeviceAsleep"));
         }
         else if (live.LastProbeAnswered == true && !live.Battery.IsAvailable)
         {
-            parts.Add("заряд не читается");
+            parts.Add(Loc.Get("ChargeUnreadable"));
         }
 
         if (live.Wpid is not null)
@@ -292,15 +293,15 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
         if (!live.Online)
         {
-            parts.Add("не на связи");
+            parts.Add(Loc.Get("NotConnected"));
         }
 
         return parts.Count == 0 ? null : string.Join(" · ", parts);
     }
 
     /// <summary>
-    /// Фоновый слушатель Lightspeed-донгла (G435 и подобные): донгл сам периодически
-    /// (~6.4 c) присылает 65-байтный статус-кадр с зарядом наушников.
+    /// Background listener for the Lightspeed dongle (G435 and similar): the dongle itself periodically
+    /// (~6.4 s) sends a 65-byte status frame with the headset charge.
     /// </summary>
     private void StartHeadsetListener(HidppTransport transport)
     {
@@ -332,7 +333,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
                     continue;
                 }
 
-                if (!TryParseLightspeedHeadset(data, out var battery, out var detail))
+                if (!TryParseLightspeedHeadset(data, out var hasBattery, out var battery, out var detail))
                 {
                     continue;
                 }
@@ -347,9 +348,13 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
                 live.Kind = GearKind.Headset;
                 live.Online = true;
-                live.Battery = battery;
-                live.BatteryDetail = detail;
                 live.LastEventUtc = DateTimeOffset.UtcNow;
+
+                if (hasBattery)
+                {
+                    live.Battery = battery;
+                    live.BatteryDetail = detail;
+                }
             }
             catch
             {
@@ -359,42 +364,62 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
     }
 
     /// <summary>
-    /// Кадр Lightspeed-донгла G435 (65 байт): 00 1B 50 49 01 C0 [таймстамп 4Б] 03 00 11 [счётчик] 1C
-    /// 50 49 11 [счётчик] [таймстамп 4Б] 01 04 00 04 01 [таймер] [заряд %] ... — заряд в байте 28,
-    /// байт 27 медленно уменьшается (оценочное время работы). Точная калибровка уточняется по G HUB.
+    /// Lightspeed dongle frame for the G435 (65 bytes, starts with 00, contains the marker 50 49).
+    /// The charge is in the record &lt;status&gt; 04 00 04 01 &lt;low&gt; &lt;high&gt;, where status is the state:
+    /// 01 — not charging, 03 — charging (bit 0x02). Percentages are in 1/256 format (0x32E9 = 50.91%).
+    /// Frames without this record are just link status.
     /// </summary>
-    private static bool TryParseLightspeedHeadset(byte[] data, out BatteryReading battery, out string? detail)
+    private static bool TryParseLightspeedHeadset(byte[] data, out bool hasBattery, out BatteryReading battery, out string? detail)
     {
+        hasBattery = false;
         battery = BatteryReading.Unknown;
         detail = null;
 
-        if (data.Length < 30
-            || data[0] != 0x00
-            || data[1] != 0x1B
-            || data[2] != 0x50
-            || data[3] != 0x49
-            || data[4] != 0x01)
+        if (data.Length < 30 || data[0] != 0x00 || data[2] != 0x50 || data[3] != 0x49)
         {
             return false;
         }
 
-        var percent = data[28];
-        if (percent is 0 or > 100)
+        for (var index = 5; index + 5 < data.Length; index++)
         {
-            return false;
+            // The record anchor is 04 00 04 01; the byte before it is the status (bit 0x02 — charging).
+            if (data[index] != 0x04
+                || data[index + 1] != 0x00
+                || data[index + 2] != 0x04
+                || data[index + 3] != 0x01)
+            {
+                continue;
+            }
+
+            var status = data[index - 1];
+            var raw = (data[index + 5] << 8) | data[index + 4];
+            var percent = (int)Math.Round(raw / 256.0);
+
+            if (percent is <= 0 or > 100)
+            {
+                continue;
+            }
+
+            hasBattery = true;
+            battery = new BatteryReading
+            {
+                Percent = percent,
+                IsCharging = (status & 0x02) != 0,
+            };
+            detail = Loc.Get("ApproxByDongle");
+            return true;
         }
 
-        battery = new BatteryReading { Percent = percent };
-        detail = "≈ по данным донгла Lightspeed";
+        // Dongle frame without charge: mark the device as online, leave the battery untouched.
         return true;
     }
 
     private static string? KindName(GearKind kind) => kind switch
     {
-        GearKind.Mouse => "Logitech-мышь",
-        GearKind.Keyboard => "Logitech-клавиатура",
-        GearKind.Gamepad => "Logitech-геймпад",
-        GearKind.Headset => "Logitech-наушники",
+        GearKind.Mouse => Loc.Get("LogitechMouse"),
+        GearKind.Keyboard => Loc.Get("LogitechKeyboard"),
+        GearKind.Gamepad => Loc.Get("LogitechGamepad"),
+        GearKind.Headset => Loc.Get("LogitechHeadset"),
         _ => null,
     };
 
@@ -407,7 +432,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
         _ => GearKind.Other,
     };
 
-    /// <summary>Разбирает прочитанный буфер: в одном чтении может прийти несколько отчётов подряд.</summary>
+    /// <summary>Parses the read buffer: a single read may contain several reports in a row.</summary>
     private void HandleIncomingBuffer(HidppTransport transport, byte[] data)
     {
         var offset = 0;
@@ -485,7 +510,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
             default:
             {
-                // Нотификация HID++ 2.0: swId = 0, а featureIndex совпадает с известной фичей заряда.
+                // HID++ 2.0 notification: swId = 0 and featureIndex matches a known charge feature.
                 if (subId >= 0x80 || (data[3] & 0x0F) != 0)
                 {
                     break;
@@ -498,14 +523,14 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
                 if (live.UnifiedBatteryFeature is { } unifiedFeature && subId == unifiedFeature && payload.Length >= 3)
                 {
-                    var probe = ParseUnifiedBattery(payload, suffix: "нотификация");
+                    var probe = ParseUnifiedBattery(payload, suffix: Loc.Get("ViaNotification"));
                     live.Battery = probe.Battery;
                     live.BatteryDetail = probe.Detail;
                     live.LastEventUtc = DateTimeOffset.UtcNow;
                 }
                 else if (live.BatteryStatusFeature is { } statusFeature && subId == statusFeature && payload.Length >= 3)
                 {
-                    var probe = ParseBatteryStatus(payload, suffix: "нотификация");
+                    var probe = ParseBatteryStatus(payload, suffix: Loc.Get("ViaNotification"));
                     live.Battery = probe.Battery;
                     live.BatteryDetail = probe.Detail;
                     live.LastEventUtc = DateTimeOffset.UtcNow;
@@ -527,7 +552,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
             {
                 var statusNibble = payload.Length > 2 ? (byte)(payload[2] & 0xF0) : (byte)0;
                 var charging = statusNibble is 0x50 or 0x90;
-                detail = charging ? "Заряжается (нотификация)" : "по нотификации";
+                detail = charging ? Loc.Get("ChargingNotification") : Loc.Get("ByNotification");
                 return new BatteryReading { Percent = charge, IsCharging = charging };
             }
         }
@@ -545,7 +570,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
             if (coarse != CoarseBatteryLevel.Unknown)
             {
                 var charging = (payload[1] & 0x21) == 0x21 || (payload[1] & 0x22) == 0x22;
-                detail = charging ? "Заряжается (нотификация)" : "по нотификации";
+                detail = charging ? Loc.Get("ChargingNotification") : Loc.Get("ByNotification");
                 return new BatteryReading { Coarse = coarse, IsCharging = charging };
             }
         }
@@ -555,6 +580,12 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
     private BatteryProbe ReadBattery(LiveDevice live)
     {
+        if (!live.Transport.LooksLikeReceiver && live.Transport.MaxInputReportLength >= 64)
+        {
+            // Lightspeed headset dongle: the charge arrives on its own; it does not support active requests.
+            return new BatteryProbe(live.Battery, HasFault: false, Detail: null, Answered: true);
+        }
+
         var probe = TryReadViaDeviceChannel(live);
         if (probe is { } found)
         {
@@ -562,15 +593,15 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
             return found;
         }
 
-        // Старые устройства и моноприёмники: короткий канал и регистры HID++ 1.0.
+        // Older devices and single-device receivers: the short channel and HID++ 1.0 registers.
         var legacy = ReadViaRegisters(live.Transport, live.DeviceIndex);
         live.LastProbeAnswered = legacy.Answered;
         return legacy;
     }
 
     /// <summary>
-    /// HID++ 2.0 через длинный канал (0x11, usage 0xFF00/0x0002). Сначала ping:
-    /// если устройство спит, запросы к нему бессмысленны.
+    /// HID++ 2.0 through the long channel (0x11, usage 0xFF00/0x0002). Ping first:
+    /// if the device is asleep, requests to it are pointless.
     /// </summary>
     private BatteryProbe? TryReadViaDeviceChannel(LiveDevice live)
     {
@@ -582,10 +613,10 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
         if (!Ping(transport, live.DeviceIndex, ProbeTimeout))
         {
-            return BatteryProbe.NotSupported; // устройство не ответило: скорее всего, спит
+            return BatteryProbe.NotSupported; // device did not respond: most likely asleep
         }
 
-        // UNIFIED_BATTERY (0x1004): функция 1 отдаёт [дискрет%, уровень, статус].
+        // UNIFIED_BATTERY (0x1004): function 1 returns [discrete %, level, status].
         if (live.UnifiedBatteryFeature is null
             && TryRootGetFeatureLong(transport, live.DeviceIndex, FeatureUnifiedBattery, out var unified)
             && unified != 0)
@@ -602,10 +633,10 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
                 return ParseUnifiedBattery(reply.Payload, suffix: null);
             }
 
-            return BatteryProbe.Faulted("заряд не читается");
+            return BatteryProbe.Faulted(Loc.Get("ChargeUnreadable"));
         }
 
-        // BATTERY_STATUS (0x1000): функция 0 отдаёт [уровень%, следующий%, статус].
+        // BATTERY_STATUS (0x1000): function 0 returns [level %, next %, status].
         if (live.BatteryStatusFeature is null
             && TryRootGetFeatureLong(transport, live.DeviceIndex, FeatureBatteryStatus, out var status)
             && status != 0)
@@ -622,10 +653,10 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
                 return ParseBatteryStatus(reply.Payload, suffix: null);
             }
 
-            return BatteryProbe.Faulted("заряд не читается");
+            return BatteryProbe.Faulted(Loc.Get("ChargeUnreadable"));
         }
 
-        // BATTERY_VOLTAGE (0x1001): функция 0 отдаёт [напряжение BE, флаги].
+        // BATTERY_VOLTAGE (0x1001): function 0 returns [voltage BE, flags].
         if (live.BatteryVoltageFeature is null
             && TryRootGetFeatureLong(transport, live.DeviceIndex, FeatureBatteryVoltage, out var voltage)
             && voltage != 0)
@@ -649,17 +680,17 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
                         IsCharging = charging,
                     },
                     HasFault: false,
-                    charging ? "Заряжается" : "≈ по напряжению",
+                    charging ? Loc.Get("Charging") : Loc.Get("ApproxByVoltage"),
                     Answered: true);
             }
 
-            return BatteryProbe.Faulted("заряд не читается");
+            return BatteryProbe.Faulted(Loc.Get("ChargeUnreadable"));
         }
 
         return BatteryProbe.NotSupported;
     }
 
-    /// <summary>Ping (HID++ 2.0 ROOT, функция 1): отвечает ли устройство прямо сейчас.</summary>
+    /// <summary>Ping (HID++ 2.0 ROOT, function 1): whether the device responds right now.</summary>
     private static bool Ping(HidppTransport transport, byte deviceIndex, TimeSpan timeout)
         => transport.TryDeviceCall(deviceIndex, RootFeatureIndex, 0x01, timeout, out var reply, 0x00, 0x00, 0xA5)
             && !reply.IsError
@@ -691,15 +722,15 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
         return featureIndex != 0;
     }
 
-    /// <summary>Описание статусного байта батареи: зарядка, неисправность, текст.</summary>
+    /// <summary>Description of the battery status byte: charging, fault, text.</summary>
     private static (bool Charging, bool Fault, string? Detail) DescribeBatteryStatus(byte status) => status switch
     {
-        1 => (true, false, "Заряжается"),
-        2 => (false, false, "Заряд завершён"),
-        3 => (true, false, "Медленная зарядка"),
-        4 => (false, true, "Проблема с батареей"),
-        5 => (false, true, "Перегрев батареи"),
-        6 => (false, true, "Ошибка зарядки"),
+        1 => (true, false, Loc.Get("Charging")),
+        2 => (false, false, Loc.Get("ChargeComplete")),
+        3 => (true, false, Loc.Get("SlowCharging")),
+        4 => (false, true, Loc.Get("BatteryProblem")),
+        5 => (false, true, Loc.Get("BatteryOverheat")),
+        6 => (false, true, Loc.Get("ChargingError")),
         _ => (false, false, null),
     };
 
@@ -759,7 +790,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
     private static string? CombineDetail(string? detail, string? suffix)
         => detail is null ? null : suffix is null ? detail : $"{detail} ({suffix})";
 
-    /// <summary>HID++ 1.0: регистр 0x0D (точный процент) и 0x07 (огрублённый уровень).</summary>
+    /// <summary>HID++ 1.0: register 0x0D (accurate percentage) and 0x07 (coarse level).</summary>
     private static BatteryProbe ReadViaRegisters(HidppTransport transport, byte deviceIndex)
     {
         var answered = false;
@@ -778,7 +809,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
                 return new BatteryProbe(
                     new BatteryReading { Percent = chargeData[0], IsCharging = charging },
                     HasFault: false,
-                    charging ? "Заряжается" : "≈ по данным устройства",
+                    charging ? Loc.Get("Charging") : Loc.Get("ApproxByDevice"),
                     Answered: true);
             }
         }
@@ -805,7 +836,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
                     return new BatteryProbe(
                         new BatteryReading { Coarse = coarse, IsCharging = charging },
                         HasFault: false,
-                        charging ? "Заряжается" : "≈ по данным устройства",
+                        charging ? Loc.Get("Charging") : Loc.Get("ApproxByDevice"),
                         Answered: true);
                 }
             }
@@ -815,8 +846,8 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
     }
 
     /// <summary>
-    /// Имя устройства через HID++ 2.0 (DEVICE_NAME 0x0005): функция 2 — вид устройства,
-    /// функция 0 — длина имени, функция 1 — куски UTF-8.
+    /// Device name via HID++ 2.0 (DEVICE_NAME 0x0005): function 2 — device kind,
+    /// function 0 — name length, function 1 — UTF-8 chunks.
     /// </summary>
     private static string? ReadDeviceName(LiveDevice live)
     {
@@ -1038,13 +1069,13 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
             _transports.AddRange(HidppTransport.FindAll());
 
-            // Любое прочитанное сообщение — потенциальная нотификация: разбираем всё, что приходит.
+            // Any message read is a potential notification: parse everything that arrives.
             foreach (var transport in _transports)
             {
                 var captured = transport;
                 captured.MessageRead += data => HandleIncomingBuffer(captured, data);
 
-                // Донгл наушников Lightspeed: статус приходит сам, нужен фоновый слушатель.
+                // Lightspeed headset dongle: status arrives on its own; a background listener is needed.
                 if (!captured.LooksLikeReceiver && captured.MaxInputReportLength >= 64)
                 {
                     StartHeadsetListener(captured);
@@ -1053,7 +1084,7 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
         }
     }
 
-    /// <summary>Слушает входные отчёты в течение заданного окна и разбирает нотификации.</summary>
+    /// <summary>Listens to input reports for the given window and parses notifications.</summary>
     private void CollectNotifications(TimeSpan window)
     {
         var buffer = new byte[64];

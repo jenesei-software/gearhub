@@ -5,7 +5,7 @@ Console.OutputEncoding = Encoding.UTF8;
 
 if (args.Contains("--live"))
 {
-    Console.WriteLine("=== LIVE 40s: двигай мышь и стучи по клавиатуре! ===");
+    Console.WriteLine("=== LIVE 40s: move the mouse and type on the keyboard! ===");
     var liveTransports = HidppTransport.FindAll().ToList();
     var stop = DateTimeOffset.UtcNow.AddSeconds(40);
     var startAt = DateTimeOffset.UtcNow;
@@ -39,15 +39,15 @@ if (args.Contains("--live"))
         ask++;
     }
 
-    Console.WriteLine("=== LIVE закончен ===");
+    Console.WriteLine("=== LIVE finished ===");
     return;
 }
 
-Console.WriteLine("=== Интерфейсы HID++ (usage 0xFF00/0x0001) ===");
+Console.WriteLine("=== HID++ interfaces (usage 0xFF00/0x0001) ===");
 var transports = HidppTransport.FindAll();
 
 Console.WriteLine();
-Console.WriteLine("=== Коллекции приёмников: usages и открытие ===");
+Console.WriteLine("=== Receiver collections: usages and open ===");
 
 foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
 {
@@ -86,7 +86,7 @@ foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
 }
 
 Console.WriteLine();
-Console.WriteLine("=== Матрица длинных каналов приёмников: короткий и длинный запросы ===");
+Console.WriteLine("=== Receiver long-channel matrix: short and long requests ===");
 
 foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
 {
@@ -117,7 +117,7 @@ foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
 
         if (!device.TryOpen(out var channel))
         {
-            Console.WriteLine($"- pid={tag} usages={string.Join(",", vendorUsages.Select(usage => usage.ToString("X4")))}: ОТКРЫТЬ НЕ УДАЛОСЬ");
+            Console.WriteLine($"- pid={tag} usages={string.Join(",", vendorUsages.Select(usage => usage.ToString("X4")))}: OPEN FAILED");
             continue;
         }
 
@@ -154,7 +154,7 @@ foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
         {
             foreach (var reply in replies)
             {
-                // Успешный ответ getFeature: 1101 00 0B <index> <type> <version> ...
+                // Successful getFeature reply: 1101 00 0B <index> <type> <version> ...
                 if (reply.StartsWith("1101000B", StringComparison.OrdinalIgnoreCase) && reply.Length >= 10)
                 {
                     return Convert.ToInt32(reply.Substring(8, 2), 16);
@@ -175,7 +175,7 @@ foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
             }
             catch (Exception error)
             {
-                Console.WriteLine($"    {label}: запись не удалась ({error.GetType().Name})");
+                Console.WriteLine($"    {label}: write failed ({error.GetType().Name})");
                 return collected;
             }
 
@@ -201,7 +201,7 @@ foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
                 }
             }
 
-            Console.WriteLine($"    {label}: {(collected.Count == 0 ? "нет ответа" : string.Join(" | ", collected))}");
+            Console.WriteLine($"    {label}: {(collected.Count == 0 ? "no reply" : string.Join(" | ", collected))}");
             return collected;
         }
 
@@ -239,17 +239,17 @@ foreach (var device in HidSharp.DeviceList.Local.GetHidDevices(0x046D))
 
 if (transports.Count == 0)
 {
-    Console.WriteLine("Не найдено. Если Logitech-устройства подключены — проверьте, не занят ли HID-интерфейс другой программой (G HUB и т.п.).");
+    Console.WriteLine("Not found. If Logitech devices are connected, check whether the HID interface is busy with another app (G HUB etc.).");
 }
 
 foreach (var transport in transports)
 {
-    Console.WriteLine($"- {transport.ProductName} | приёмник={transport.LooksLikeReceiver}");
+    Console.WriteLine($"- {transport.ProductName} | receiver={transport.LooksLikeReceiver}");
     Console.WriteLine($"  {transport.DevicePath}");
 }
 
 Console.WriteLine();
-Console.WriteLine("=== Эксперимент: слот 1, длинные окна чтения ===");
+Console.WriteLine("=== Experiment: slot 1, long read windows ===");
 
 foreach (var transport in transports.Where(candidate => candidate.LooksLikeReceiver))
 {
@@ -260,15 +260,15 @@ foreach (var transport in transports.Where(candidate => candidate.LooksLikeRecei
         HidppCodec.BuildShortRequest(1, 0x00, 0x00, 0x0B, 0x10, 0x04),
         TimeSpan.FromMilliseconds(3000),
         8);
-    Console.WriteLine($"  getFeature(0x1004): {(featureReplies.Count == 0 ? "нет ответа" : string.Join(" | ", featureReplies.Select(Convert.ToHexString)))}");
+    Console.WriteLine($"  getFeature(0x1004): {(featureReplies.Count == 0 ? "no reply" : string.Join(" | ", featureReplies.Select(Convert.ToHexString)))}");
 
     transport.DrainInput();
     var chargeReplies = transport.CollectReplies(RegisterRequest(1, 0x810D), TimeSpan.FromMilliseconds(3000), 8);
-    Console.WriteLine($"  read 0x0D: {(chargeReplies.Count == 0 ? "нет ответа" : string.Join(" | ", chargeReplies.Select(Convert.ToHexString)))}");
+    Console.WriteLine($"  read 0x0D: {(chargeReplies.Count == 0 ? "no reply" : string.Join(" | ", chargeReplies.Select(Convert.ToHexString)))}");
 
     transport.DrainInput();
     var pingReplies = transport.CollectReplies(HidppCodec.BuildShortRequest(1, 0x00, 0x01, 0x0B, 0x00, 0x00, 0xA5), TimeSpan.FromMilliseconds(3000), 8);
-    Console.WriteLine($"  ping: {(pingReplies.Count == 0 ? "нет ответа" : string.Join(" | ", pingReplies.Select(Convert.ToHexString)))}");
+    Console.WriteLine($"  ping: {(pingReplies.Count == 0 ? "no reply" : string.Join(" | ", pingReplies.Select(Convert.ToHexString)))}");
 }
 
 Console.WriteLine();
@@ -290,7 +290,7 @@ static byte[] RegisterRequest(byte deviceIndex, ushort requestId, params byte[] 
 }
 
 Console.WriteLine();
-Console.WriteLine("=== Диагностика по индексам устройств (1-6) ===");
+Console.WriteLine("=== Device index diagnostics (1-6) ===");
 
 foreach (var transport in transports)
 {
@@ -298,11 +298,11 @@ foreach (var transport in transports)
 
     for (byte index = 1; index <= 6; index++)
     {
-        // Root.getFeature(0x1004); swId = 0x0B, как в Solaar (старший бит установлен).
+        // Root.getFeature(0x1004); swId = 0x0B, as in Solaar (high bit set).
         var featureRequest = HidppCodec.BuildShortRequest(index, 0x00, 0x00, 0x0B, 0x10, 0x04);
         var featureResult = Describe(transport, featureRequest);
 
-        // Ping: [0x00, 0x1B, 0x00, 0x00, mark] — работает и для HID++ 1.0, и для 2.0.
+        // Ping: [0x00, 0x1B, 0x00, 0x00, mark] — works for both HID++ 1.0 and 2.0.
         var pingRequest = HidppCodec.BuildShortRequest(index, 0x00, 0x01, 0x0B, 0x00, 0x00, 0xA5);
         var pingResult = Describe(transport, pingRequest);
 
@@ -311,8 +311,8 @@ foreach (var transport in transports)
 }
 
 Console.WriteLine();
-Console.WriteLine("=== Второй проход: 15 секунд, опрос каждую секунду ===");
-Console.WriteLine("Волнуйтесь мышью и понажимайте клавиши, пока идёт опрос!");
+Console.WriteLine("=== Second pass: 15 seconds, polling every second ===");
+Console.WriteLine("Wiggle the mouse and press keys while polling runs!");
 
 var deadline = DateTime.UtcNow.AddSeconds(15);
 var found = false;
@@ -329,10 +329,10 @@ while (DateTime.UtcNow < deadline && !found)
                 continue;
             }
 
-            // Ответ 8F ... — ошибка «недостижимо»; ищем содержательный ответ.
+            // An 8F ... reply means "unreachable"; we are looking for a meaningful reply.
             if (raw.Length > 2 && raw[2] != 0x8F)
             {
-                Console.WriteLine($"  ЕСТЬ ОТВЕТ: {transport.ProductName} idx={index}: {Convert.ToHexString(raw)}");
+                Console.WriteLine($"  REPLY FOUND: {transport.ProductName} idx={index}: {Convert.ToHexString(raw)}");
                 found = true;
             }
         }
@@ -341,7 +341,7 @@ while (DateTime.UtcNow < deadline && !found)
 
 if (!found)
 {
-    Console.WriteLine("  Содержательных ответов не было.");
+    Console.WriteLine("  No meaningful replies were seen.");
 }
 
 Console.WriteLine();
@@ -349,7 +349,7 @@ Console.WriteLine();
 static string Describe(HidppTransport transport, byte[] request, int timeoutMs = 700)
 {
     var ok = transport.TryRawExchange(request, TimeSpan.FromMilliseconds(timeoutMs), out var raw, out var error);
-    return ok ? Convert.ToHexString(raw) : $"нет ответа ({error})";
+    return ok ? Convert.ToHexString(raw) : $"no reply ({error})";
 }
 
 static IEnumerable<(string Label, byte[] Frame)> BuildDevProbeMatrix(int length)
@@ -453,20 +453,20 @@ static byte[]? CenturionCall(HidppTransport transport, int length, byte reportId
         }
     }
 
-    Console.WriteLine($"    {label}: нет ответа");
+    Console.WriteLine($"    {label}: no reply");
     return null;
 }
 
 Console.WriteLine();
-Console.WriteLine("=== Centurion (G435 и подобные донглы) ===");
+Console.WriteLine("=== Centurion (G435 and similar dongles) ===");
 
 foreach (var transport in transports.Where(candidate => !candidate.LooksLikeReceiver && candidate.MaxOutputReportLength >= 64))
 {
     var length = transport.MaxOutputReportLength;
     Console.WriteLine($"--- {transport.ProductName} out={length} ---");
 
-    // Пассивное прослушивание: что донгл шлёт сам (телеметрия наушников).
-    Console.WriteLine("  слушаю 25 секунд...");
+    // Passive listening: what the dongle sends on its own (headset telemetry).
+    Console.WriteLine("  listening for 25 seconds...");
     var listenBuffer = new byte[128];
     var listenUntil = DateTimeOffset.UtcNow.AddSeconds(25);
     while (DateTimeOffset.UtcNow < listenUntil)
@@ -481,7 +481,7 @@ foreach (var transport in transports.Where(candidate => !candidate.LooksLikeRece
     byte address = 0;
     var centurionFound = false;
 
-    // Вариант 0x51: без байта адреса. Solaar для разведки использует ROOT.GetProtocolVersion (func 0x10).
+    // Variant 0x51: no address byte. Solaar uses ROOT.GetProtocolVersion (func 0x10) for discovery.
     foreach (var function in new byte[] { 0x10, 0x1B })
     {
         var parameters = function == 0x1B ? new byte[] { 0x00, 0x00, 0xA5 } : new byte[] { 0x00, 0x00, 0x00 };
@@ -503,12 +503,12 @@ foreach (var transport in transports.Where(candidate => !candidate.LooksLikeRece
             }
             else
             {
-                Console.WriteLine($"  0x51 func=0x{function:X2}: сырое чтение [{Convert.ToHexString(read)}]");
+                Console.WriteLine($"  0x51 func=0x{function:X2}: raw read [{Convert.ToHexString(read)}]");
             }
         }
     }
 
-    // Вариант 0x50: байт адреса подбирается перебором (Solaar: probe device_addr 0x00-0xFF).
+    // Variant 0x50: the address byte is brute-forced (Solaar: probe device_addr 0x00-0xFF).
     if (!centurionFound)
     {
         var notified = false;
@@ -521,7 +521,7 @@ foreach (var transport in transports.Where(candidate => !candidate.LooksLikeRece
                 if (TryUnwrapCenturion(read, out var id, out var addr, out var inner)
                     && inner.Length >= 2 && inner[0] == 0x00 && inner[1] == 0x10)
                 {
-                    Console.WriteLine($"  0x50: адрес найден 0x{candidate:X2}, ответ [{Convert.ToHexString(read)}]");
+                    Console.WriteLine($"  0x50: address found 0x{candidate:X2}, reply [{Convert.ToHexString(read)}]");
                     reportId = id;
                     address = addr;
                     centurionFound = true;
@@ -531,22 +531,22 @@ foreach (var transport in transports.Where(candidate => !candidate.LooksLikeRece
                 if (!notified)
                 {
                     notified = true;
-                    Console.WriteLine($"  во время перебора пришло чтение [{Convert.ToHexString(read)}]");
+                    Console.WriteLine($"  a read arrived during the scan [{Convert.ToHexString(read)}]");
                 }
             }
         }
 
         if (!centurionFound)
         {
-            Console.WriteLine("  0x50: устройство не ответило ни на один адрес");
+            Console.WriteLine("  0x50: the device did not answer on any address");
         }
     }
 
-    // Стандартный HID++ в 65-байтных кадрах: вдруг донгл говорит отчётами 0x10/0x11.
+    // Standard HID++ in 65-byte frames: maybe the dongle speaks via 0x10/0x11 reports.
     foreach (var (label, frame) in BuildDevProbeMatrix(length))
     {
         var ok = transport.TryRawExchange(frame, TimeSpan.FromMilliseconds(700), out var rawReply, out var rawError);
-        Console.WriteLine($"  {label}: {(ok ? Convert.ToHexString(rawReply) : $"нет ответа ({rawError})")}");
+        Console.WriteLine($"  {label}: {(ok ? Convert.ToHexString(rawReply) : $"no reply ({rawError})")}");
     }
 
     if (!centurionFound)
@@ -554,20 +554,20 @@ foreach (var transport in transports.Where(candidate => !candidate.LooksLikeRece
         continue;
     }
 
-    Console.WriteLine($"  связь есть: report=0x{reportId:X2} addr=0x{address:X2}");
+    Console.WriteLine($"  link established: report=0x{reportId:X2} addr=0x{address:X2}");
 
     var fs = CenturionCall(transport, length, reportId, address, "getFeature(0x0001)", 0x00, 0x0B, [0x00, 0x01]);
     var fsIndex = fs is { Length: >= 3 } ? fs[2] : (byte)0;
 
     if (fsIndex == 0)
     {
-        Console.WriteLine("  FEATURE_SET не найден");
+        Console.WriteLine("  FEATURE_SET not found");
         continue;
     }
 
     var countReply = CenturionCall(transport, length, reportId, address, "count", fsIndex, 0x0B, []);
     var count = countReply is { Length: >= 3 } ? countReply[2] : (byte)0;
-    Console.WriteLine($"  фич у донгла: {count}");
+    Console.WriteLine($"  dongle features: {count}");
 
     var batteryFeature = (byte)0;
     var sawBridge = false;
@@ -597,26 +597,26 @@ foreach (var transport in transports.Where(candidate => !candidate.LooksLikeRece
     {
         var soc = CenturionCall(transport, length, reportId, address, "BATTERY_SOC", batteryFeature, 0x0B, []);
         Console.WriteLine(soc is { Length: >= 3 }
-            ? $"  заряд: {soc[2]}% (статус {(soc.Length > 4 ? soc[4] : (byte)0)})"
-            : "  батарея: фича есть, но не ответила");
+            ? $"  charge: {soc[2]}% (status {(soc.Length > 4 ? soc[4] : (byte)0)})"
+            : "  battery: the feature exists but did not reply");
     }
     else
     {
         Console.WriteLine(sawBridge
-            ? "  батарея: BATTERY_SOC у донгла нет, но есть bridge 0x0003 — заряд читается через bridge у наушников"
-            : "  батарея: BATTERY_SOC (0x0104) не найдена");
+            ? "  battery: the dongle has no BATTERY_SOC, but bridge 0x0003 exists — charge is read through the headset bridge"
+            : "  battery: BATTERY_SOC (0x0104) not found");
     }
 }
 
 Console.WriteLine();
-Console.WriteLine("=== Устройства и заряд ===");
+Console.WriteLine("=== Devices and charge ===");
 
 using var provider = new LogitechHidppProvider();
 var devices = await provider.DiscoverAsync(CancellationToken.None);
 
 if (devices.Count == 0)
 {
-    Console.WriteLine("Ничего не найдено. Устройство за приёмником может спать — нажмите кнопку/подвиньте мышь и повторите.");
+    Console.WriteLine("Nothing found. A device behind the receiver may be asleep — press a button / move the mouse and retry.");
 }
 
 foreach (var device in devices)
@@ -625,6 +625,6 @@ foreach (var device in devices)
         ? $"{percent}%"
         : device.Battery.Coarse.ToString();
 
-    Console.WriteLine($"- {device.Name} [{device.Kind}] заряд={battery} ошибка={device.HasFault} {device.Detail}");
+    Console.WriteLine($"- {device.Name} [{device.Kind}] charge={battery} fault={device.HasFault} {device.Detail}");
     Console.WriteLine($"  {device.DeviceId}");
 }

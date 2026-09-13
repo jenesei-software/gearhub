@@ -1,41 +1,79 @@
 <Application x:Class="GearHub.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:GearHub.App.Converters"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
 
-        <!-- Цвета приходят из Themes/Dark.xaml или Themes/Light.xaml (см. App.xaml.cs) -->
+        <!-- Converters for bindings (visibility, option selection) -->
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+        <conv:EnumToBoolConverter x:Key="EnumToBool" />
 
-        <!-- Иконка трея: тёмный скруглённый квадрат с батарейкой -->
-        <DrawingImage x:Key="TrayIconImage">
+        <!-- Colors come from Themes/Dark.xaml or Themes/Light.xaml (see App.xaml.cs) -->
+
+        <!-- Tray icon: monochrome Windows 11 style battery, pixel-aligned (9x7 body at 16px,
+             1px stroke). The color is picked to match the taskbar theme in MainWindow.UpdateTrayIcon:
+             TrayIconDark — white, TrayIconLight — dark. -->
+        <DrawingImage x:Key="TrayIconDark">
             <DrawingImage.Drawing>
                 <DrawingGroup>
-                    <GeometryDrawing Brush="#FF17181C">
+                    <!-- Invisible 32x32 square: sets exact DrawingImage bounds, otherwise the icon
+                         converter stretches the battery to its actual bounds into a square. -->
+                    <GeometryDrawing Brush="#01FFFFFF">
                         <GeometryDrawing.Geometry>
-                            <RectangleGeometry Rect="0,0,32,32" RadiusX="7" RadiusY="7" />
+                            <RectangleGeometry Rect="0,0,32,32" />
                         </GeometryDrawing.Geometry>
                     </GeometryDrawing>
-                    <GeometryDrawing Brush="#FF3FB950">
+                    <GeometryDrawing Brush="#FFFFFFFF">
                         <GeometryDrawing.Geometry>
-                            <RectangleGeometry Rect="8.5,12,9,8" RadiusX="1.5" RadiusY="1.5" />
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="6,10,12,10" RadiusX="2" RadiusY="2" />
+                                <RectangleGeometry Rect="28,14,2,4" RadiusX="1" RadiusY="1" />
+                            </GeometryGroup>
                         </GeometryDrawing.Geometry>
                     </GeometryDrawing>
                     <GeometryDrawing>
                         <GeometryDrawing.Pen>
-                            <Pen Brush="#FFEDEDF2" Thickness="1.6" />
+                            <Pen Brush="#FFFFFFFF" Thickness="2" />
                         </GeometryDrawing.Pen>
                         <GeometryDrawing.Geometry>
-                            <GeometryGroup>
-                                <RectangleGeometry Rect="7,10.5,16,11" RadiusX="2.5" RadiusY="2.5" />
-                                <RectangleGeometry Rect="23.5,13.5,2,5" RadiusX="1" RadiusY="1" />
-                            </GeometryGroup>
+                            <RectangleGeometry Rect="3,7,24,16" RadiusX="5" RadiusY="5" />
                         </GeometryDrawing.Geometry>
                     </GeometryDrawing>
                 </DrawingGroup>
             </DrawingImage.Drawing>
         </DrawingImage>
 
-        <!-- Кнопка-иконка в стиле Windows 11 -->
+        <DrawingImage x:Key="TrayIconLight">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#01FFFFFF">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,32,32" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#FF1B1B1B">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="6,10,12,10" RadiusX="2" RadiusY="2" />
+                                <RectangleGeometry Rect="28,14,2,4" RadiusX="1" RadiusY="1" />
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing>
+                        <GeometryDrawing.Pen>
+                            <Pen Brush="#FF1B1B1B" Thickness="2" />
+                        </GeometryDrawing.Pen>
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="3,7,24,16" RadiusX="5" RadiusY="5" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <!-- Windows 11 style icon button -->
         <Style x:Key="IconButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />

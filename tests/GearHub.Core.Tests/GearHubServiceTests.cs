@@ -18,7 +18,7 @@ public class GearHubServiceTests
         var provider = new FakeProvider();
         var service = new GearHubService([provider], store, new DeviceFilter(), new StatusPolicy(), time);
 
-        // 1. Устройство подключено.
+        // 1. Device is connected.
         provider.Observations =
         [
             new GearObservation
@@ -37,7 +37,7 @@ public class GearHubServiceTests
         Assert.Equal(75, device.Battery.Percent);
         Assert.Equal(Start, device.LastSeenUtc);
 
-        // 2. Через 2 часа устройство отключилось — жёлтый.
+        // 2. After 2 hours the device went offline — yellow.
         time.Now = Start + TimeSpan.FromHours(2);
         provider.Observations = [];
 
@@ -47,7 +47,7 @@ public class GearHubServiceTests
         Assert.False(device.IsConnected);
         Assert.Equal(Start, device.LastSeenUtc);
 
-        // 3. Через сутки — красный, заряд из истории сохранился.
+        // 3. After a day — red, battery from history is preserved.
         time.Now = Start + TimeSpan.FromHours(25);
 
         var lost = await service.ScanAsync();
@@ -81,7 +81,7 @@ public class GearHubServiceTests
         var first = await service.ScanAsync();
         Assert.Equal(75, Assert.Single(first.Devices).Battery.Percent);
 
-        // Устройство уснуло: заряд прочитать не удалось.
+        // The device fell asleep: the battery could not be read.
         time.Now = Start + TimeSpan.FromMinutes(1);
         provider.Observations =
         [

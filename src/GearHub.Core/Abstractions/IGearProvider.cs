@@ -2,12 +2,12 @@ using GearHub.Core.Models;
 
 namespace GearHub.Core.Abstractions;
 
-/// <summary>Источник данных о подключённой периферии (XInput, Bluetooth LE, HID++ и т.д.).</summary>
+/// <summary>Source of data about connected peripherals (XInput, Bluetooth LE, HID++, etc.).</summary>
 public interface IGearProvider
 {
     string ProviderName { get; }
 
-    /// <summary>Возвращает всё, что провайдер видит прямо сейчас. Не должен бросать исключения
-    /// из-за одного сломанного устройства.</summary>
+    /// <summary>Returns everything the provider sees right now. Must not throw because of
+    /// a single broken device.</summary>
     Task<IReadOnlyList<GearObservation>> DiscoverAsync(CancellationToken cancellationToken);
 }

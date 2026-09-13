@@ -8,6 +8,7 @@
     <AssemblyName>GearHub</AssemblyName>
     <RootNamespace>GearHub.App</RootNamespace>
     <Platforms>AnyCPU;x64</Platforms>
+    <ApplicationIcon>Assets\GearHub.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

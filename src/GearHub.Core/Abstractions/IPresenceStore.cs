@@ -2,7 +2,7 @@ using GearHub.Core.Persistence;
 
 namespace GearHub.Core.Abstractions;
 
-/// <summary>Хранилище «последний раз видели устройство» и пользовательских игнор-листов.</summary>
+/// <summary>Store of last-seen device state and user ignore lists.</summary>
 public interface IPresenceStore
 {
     IReadOnlyCollection<GearPresenceRecord> GetAll();
