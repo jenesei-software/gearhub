@@ -46,6 +46,14 @@ public sealed class BleGattBatteryProvider : IGearProvider, IDisposable
                 }
 
                 var name = FirstNonEmpty(info.Name, device.Name) ?? Loc.Get("BluetoothDevice");
+
+                // An Xbox controller connected over Bluetooth is also visible through XInput,
+                // so listing it here would duplicate the row in the widget.
+                if (name.Contains("xbox", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 var probe = await TryReadBatteryAsync(device);
 
                 result.Add(new GearObservation

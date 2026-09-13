@@ -99,6 +99,57 @@ public class GearHubServiceTests
     }
 
     [Fact]
+    public async Task CollapsesTwinsOfTheSameDeviceAcrossConnectionModes()
+    {
+        var time = new FakeTimeProvider(Start);
+        var store = new MemoryStore();
+        var provider = new FakeProvider();
+        var service = new GearHubService([provider], store, new DeviceFilter(), new StatusPolicy(), time);
+
+        // 1. The headset is connected over its Lightspeed dongle.
+        provider.Observations =
+        [
+            new GearObservation
+            {
+                DeviceId = "hidpp:g435-dongle",
+                Name = "G435 Wireless Gaming Headset",
+                Source = "Logitech HID++",
+                Kind = GearKind.Headset,
+            },
+        ];
+
+        var onDongle = await service.ScanAsync();
+        Assert.Equal("G435 Wireless Gaming Headset", Assert.Single(onDongle.Devices).Name);
+
+        // 2. The user switches the headset to Bluetooth: both twins exist, the online one wins.
+        time.Now = Start + TimeSpan.FromMinutes(5);
+        provider.Observations =
+        [
+            new GearObservation
+            {
+                DeviceId = "bthfp:40589931C077",
+                Name = "G435 Bluetooth Gaming Headset",
+                Source = "Bluetooth (HFP)",
+                Kind = GearKind.Headset,
+                Battery = new BatteryReading { Percent = 100 },
+            },
+        ];
+
+        var onBluetooth = await service.ScanAsync();
+        var device = Assert.Single(onBluetooth.Devices);
+        Assert.Equal("G435 Bluetooth Gaming Headset", device.Name);
+        Assert.Equal(GearStatus.Online, device.Status);
+        Assert.Equal(100, device.Battery.Percent);
+
+        // 3. Both twins are offline — only the freshest one stays visible.
+        time.Now = Start + TimeSpan.FromMinutes(10);
+        provider.Observations = [];
+
+        var offline = await service.ScanAsync();
+        Assert.Equal("G435 Bluetooth Gaming Headset", Assert.Single(offline.Devices).Name);
+    }
+
+    [Fact]
     public async Task HidesIgnoredDevices()
     {
         var time = new FakeTimeProvider(Start);

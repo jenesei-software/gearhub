@@ -139,13 +139,66 @@ public sealed class GearHubService
 
         _store.Replace(records.Values);
 
-        var sorted = devices
+        var sorted = CollapseNameTwins(devices)
             .OrderBy(device => (int)device.Status)
             .ThenBy(device => (int)device.Kind)
             .ThenBy(device => device.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
         return new GearSnapshot(sorted, errors);
+    }
+
+    /// <summary>
+    /// Keeps exactly one row per physical device. The same hardware can appear under several ids:
+    /// a re-plugged receiver gets a new HID path, and the G435 exists both as a Lightspeed dongle
+    /// device and as a Bluetooth device. Twins are grouped by a normalized name
+    /// ("G435 Wireless Gaming Headset" and "G435 Bluetooth Gaming Headset" → "g435 headset");
+    /// an online row wins over an offline one, otherwise the freshest row wins.
+    /// </summary>
+    private static List<GearDevice> CollapseNameTwins(List<GearDevice> devices)
+    {
+        var best = new Dictionary<string, GearDevice>(StringComparer.Ordinal);
+
+        foreach (var device in devices)
+        {
+            var key = NormalizeName(device.Name);
+            if (!best.TryGetValue(key, out var current) || IsFresher(device, current))
+            {
+                best[key] = device;
+            }
+        }
+
+        var result = new List<GearDevice>();
+
+        foreach (var device in devices)
+        {
+            if (ReferenceEquals(best[NormalizeName(device.Name)], device))
+            {
+                result.Add(device);
+            }
+        }
+
+        return result;
+    }
+
+    private static bool IsFresher(GearDevice candidate, GearDevice current)
+    {
+        var candidateOnline = candidate.Status == GearStatus.Online;
+        var currentOnline = current.Status == GearStatus.Online;
+
+        return candidateOnline != currentOnline ? candidateOnline : candidate.LastSeenUtc > current.LastSeenUtc;
+    }
+
+    private static readonly string[] NameNoiseWords = ["bluetooth", "wireless", "gaming"];
+
+    private static string NormalizeName(string name)
+    {
+        var words = name
+            .ToLowerInvariant()
+            .Split([' ', '\t', '-', '_', '(', ')'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(word => !NameNoiseWords.Contains(word));
+
+        return string.Join(' ', words);
     }
 
     private static GearDevice ToDevice(GearObservation observation, DateTimeOffset lastSeenUtc, GearStatus status) => new()

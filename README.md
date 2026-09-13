@@ -63,7 +63,9 @@ Released under the [MIT License](LICENSE).
 ## Installation
 
 1. Open the [Releases](https://github.com/jenesei-software/gearhub/releases) page and download the latest `GearHub-Setup-x.y.z.exe`.
-2. Run it — GearHub installs for the current user only (no administrator rights required) and launches right away.
+2. Run it — GearHub installs for the current user only (no administrator rights required) and launches
+   right away. The setup offers an autostart option; you can turn it on or off later in
+   Task Manager → Startup apps (or Settings → Apps → Startup).
 3. To remove it later, use the standard Windows way: **Settings → Apps → Installed apps → GearHub → Uninstall**.
 
 The installer is built with [Inno Setup](https://jrsoftware.org/isinfo.php) and published by the
