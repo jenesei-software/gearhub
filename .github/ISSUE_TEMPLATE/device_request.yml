@@ -1,0 +1,49 @@
+name: Device support request
+description: Ask GearHub to support a device that is missing or not detected.
+labels: ["device support"]
+body:
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      placeholder: 'e.g. Logitech G Pro X, Sony DualSense, HyperX Cloud III'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection
+    attributes:
+      label: How is it connected?
+      options:
+        - Lightspeed / Unifying / Bolt USB dongle
+        - Bluetooth LE
+        - Bluetooth Classic
+        - USB cable (XInput)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: 'e.g. Windows 11 24H2'
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: What shows up now?
+      description: Does the device appear at all? Is the battery unknown, or missing from the bar entirely? Does Windows itself show a battery for it anywhere (e.g. Bluetooth settings)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: hidprobe
+    attributes:
+      label: HidProbe output (Logitech devices)
+      description: 'Output of `dotnet run --project tools/GearHub.HidProbe` while the device is active, if applicable.'
+      render: text
+    validations:
+      required: false

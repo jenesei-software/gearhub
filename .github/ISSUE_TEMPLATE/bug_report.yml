@@ -1,0 +1,49 @@
+name: Bug report
+description: Something in GearHub works wrong — a wrong percentage, a device not detected, the tray flyout acting up.
+labels: ["bug"]
+body:
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      placeholder: 'e.g. Logitech G435, Xbox Series X gamepad, Sony WH-1000XM4'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection
+    attributes:
+      label: How is it connected?
+      options:
+        - Lightspeed / Unifying / Bolt USB dongle
+        - Bluetooth LE
+        - Bluetooth Classic
+        - USB cable (XInput)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: 'e.g. Windows 11 24H2, Windows 10 22H2'
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happens
+    attributes:
+      label: What happens?
+      description: What do you see, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: hidprobe
+    attributes:
+      label: HidProbe output (Logitech devices)
+      description: 'Output of `dotnet run --project tools/GearHub.HidProbe` while the device is active, if applicable.'
+      render: text
+    validations:
+      required: false

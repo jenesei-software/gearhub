@@ -142,17 +142,40 @@ Remove-Item "$env:LOCALAPPDATA\Microsoft\dotnet" -Recurse -Force
 | `tests/GearHub.Core.Tests` | Unit tests for the status policy and the filter |
 | `tools/GearHub.HidProbe` | Logitech HID++ diagnostic console |
 
-## Roadmap
+## Device support
 
-- [x] XInput (charge level), Bluetooth LE GATT `0x180F`, presence history, noise filter.
-- [x] Logitech HID++: Unifying/Bolt receivers, device names and charge, sleeping device handling.
-- [x] Connection notifications (`0x41`) and receiver slot ping scan: devices are visible even when asleep (type + WPID).
-- [x] Exact charge and real device name over the long channel (`0xFF00/0x0002`, `0x11` frames): `0x1004`/`0x1000`/`0x1001` + `DEVICE_NAME` `0x0005`. Verified with MX Keys and MX Master 3S next to Logi Options+.
-- [x] G435 Lightspeed: passive parsing of dongle status frames (1/256 charge format, "≈" marker).
-- [x] G435: charging state from the dongle frame (bit `0x02`: `01` — not charging, `03` — charging).
-- [ ] G435: calibrate percentage accuracy against G HUB.
-- [ ] Bluetooth Classic (headsets): research the battery source used by Windows Settings.
-- [ ] Sony DualSense/DualShock — HID report parsing.
-- [ ] Stable Xbox gamepad IDs via Container ID (currently the slot number).
-- [ ] Subscribe to BLE `0x2A19` notifications instead of periodic reads.
-- [ ] Settings: color thresholds, autostart, pin/ignore a device.
+| Device / family | How it connects | What you get | What still needs work |
+| --- | --- | --- | --- |
+| Xbox gamepads | XInput (USB cable or Xbox Wireless Adapter) | charge level (empty / low / medium / full) and power source (USB / AA batteries / rechargeable) | stable device IDs via Container ID — currently the slot number is shown |
+| Bluetooth LE devices with the Battery Service | Bluetooth LE, GATT `0x180F` | exact percentage | subscribe to `0x2A19` notifications instead of periodic reads |
+| Logitech G435 (Lightspeed) | USB dongle — the widget passively listens to the dongle's status frames | ≈ percentage and ⚡ while charging | calibrate the percentage against G HUB |
+| Logitech Unifying / Bolt receivers (MX Keys, MX Master 3S, …) | receiver long channel, HID++ 2.0 (`0x1004` → `0x1000` → `0x1001`, name via `0x0005`) | exact percentage and the real device name | — verified with MX Keys and MX Master 3S next to Logi Options+ |
+| Older Logitech HID++ 1.0 devices | receiver registers `0x0D`/`0x07` | percentage, sometimes coarse (empty / low / medium / full) | verify on more models |
+| Bluetooth Classic headsets and speakers | classic pairing | not supported yet | research the battery source Windows Settings uses |
+| Sony DualSense / DualShock | USB or Bluetooth | not supported yet | parse the HID reports |
+| Anything else | — | the device appears with its status; the battery may stay unknown | open an issue — see below |
+
+Notes: sleeping Logitech devices are detected by ping and marked "device is asleep" until they wake up — that is by design, not a bug. Planned in the app itself: configurable color thresholds, autostart and pinning a device.
+
+## Feedback and device requests
+
+Real hardware is what makes GearHub better, so please speak up:
+
+- **Something works wrong?** A wrong percentage, a sleeping device shown as online, the tray flyout acting up — open an [issue](https://github.com/jenesei-software/gearhub/issues) and describe what you see.
+- **Your device is not supported or not detected?** Also an issue — new hardware is the most welcome kind of request.
+- **A feature idea?** Issues are fine for that too.
+
+To make it easy to help, please include:
+
+- the device model (e.g. "Logitech G435", "Xbox Series X gamepad", "Sony WH-1000XM4");
+- how it is connected: Lightspeed / Unifying / Bolt dongle, Bluetooth LE, Bluetooth Classic, USB cable, XInput;
+- your Windows version;
+- for Logitech devices — the `GearHub.HidProbe` output, it usually contains everything needed:
+
+  ```powershell
+  dotnet run --project tools/GearHub.HidProbe
+  ```
+
+  Run it while the device is active (reconnect or charge it during the run, if possible).
+
+Pull requests are welcome too.
