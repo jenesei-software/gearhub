@@ -301,7 +301,8 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
     /// <summary>
     /// Background listener for the Lightspeed dongle (G435 and similar): the dongle itself periodically
-    /// (~6.4 s) sends a 65-byte status frame with the headset charge.
+    /// (~6.4 s) sends a 65-byte status frame with the headset state (the charging flag — the percentage
+    /// is not exposed by Logitech over this dongle).
     /// </summary>
     private void StartHeadsetListener(HidppTransport transport)
     {
@@ -365,9 +366,10 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
 
     /// <summary>
     /// Lightspeed dongle frame for the G435 (65 bytes, starts with 00, contains the marker 50 49).
-    /// The charge is in the record &lt;status&gt; 04 00 04 01 &lt;low&gt; &lt;high&gt;, where status is the state:
-    /// 01 — not charging, 03 — charging (bit 0x02). Percentages are in 1/256 format (0x32E9 = 50.91%).
-    /// Frames without this record are just link status.
+    /// The dongle does NOT broadcast the headset charge: the bytes after the 04 00 04 01 record are a
+    /// rolling counter (verified by capture), not a percentage. Only the state byte before the record
+    /// is meaningful — bit 0x02 is set while the headset is charging. Frames without the record are
+    /// just link status.
     /// </summary>
     private static bool TryParseLightspeedHeadset(byte[] data, out bool hasBattery, out BatteryReading battery, out string? detail)
     {
@@ -380,9 +382,9 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
             return false;
         }
 
-        for (var index = 5; index + 5 < data.Length; index++)
+        for (var index = 5; index + 3 < data.Length; index++)
         {
-            // The record anchor is 04 00 04 01; the byte before it is the status (bit 0x02 — charging).
+            // The record anchor is 04 00 04 01; the byte before it is the state (bit 0x02 — charging).
             if (data[index] != 0x04
                 || data[index + 1] != 0x00
                 || data[index + 2] != 0x04
@@ -392,21 +394,8 @@ public sealed class LogitechHidppProvider : IGearProvider, IDisposable
             }
 
             var status = data[index - 1];
-            var raw = (data[index + 5] << 8) | data[index + 4];
-            var percent = (int)Math.Round(raw / 256.0);
-
-            if (percent is <= 0 or > 100)
-            {
-                continue;
-            }
-
             hasBattery = true;
-            battery = new BatteryReading
-            {
-                Percent = percent,
-                IsCharging = (status & 0x02) != 0,
-            };
-            detail = Loc.Get("ApproxByDongle");
+            battery = new BatteryReading { IsCharging = (status & 0x02) != 0 };
             return true;
         }
 

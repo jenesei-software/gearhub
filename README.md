@@ -28,9 +28,11 @@ Released under the [MIT License](LICENSE).
 
 - **Xbox gamepads** (XInput): charge level (empty/low/medium/full) and power source (USB / AA batteries / rechargeable battery).
 - **Bluetooth LE devices** with the Battery Service (`GATT 0x180F`): exact percentage.
-- **Logitech Lightspeed headsets (G435)**: the dongle broadcasts status frames (every ~6 seconds)
-  with the headset charge and charging state (⚡ next to the percentage) — the widget parses them
-  passively, nothing else to install.
+- **Logitech Lightspeed headsets (G435)**: over the Lightspeed dongle the widget shows the connection
+  and the charging state (⚡) — Logitech does not broadcast the percentage there (the frames contain
+  counters only — verified by capture). Over Bluetooth the widget shows the **real battery
+  percentage**: Windows receives it from the headset via the Hands-Free profile, and GearHub reads
+  it as a device property (`DEVPKEY_Device_BatteryLevel`).
 - **Logitech via HID++**: devices behind Unifying/Bolt receivers are found through the receiver's
   connection notifications (sub_id `0x41`) and an active slot ping scan. The exact percentage and real name
   (`MX Keys`, `MX Master 3S`, …) are read with HID++ 2.0 requests over the receiver's long channel
@@ -161,7 +163,7 @@ Remove-Item "$env:LOCALAPPDATA\Microsoft\dotnet" -Recurse -Force
 | --- | --- | --- | --- |
 | Xbox gamepads | XInput (USB cable or Xbox Wireless Adapter) | charge level (empty / low / medium / full) and power source (USB / AA batteries / rechargeable) | stable device IDs via Container ID — currently the slot number is shown |
 | Bluetooth LE devices with the Battery Service | Bluetooth LE, GATT `0x180F` | exact percentage | subscribe to `0x2A19` notifications instead of periodic reads |
-| Logitech G435 (Lightspeed) | USB dongle — the widget passively listens to the dongle's status frames | ≈ percentage and ⚡ while charging | calibrate the percentage against G HUB |
+| Logitech G435 (Lightspeed / Bluetooth) | USB dongle — passive status frames; Bluetooth — HFP battery via Windows | over Bluetooth: real percentage; over the dongle: connection and ⚡ while charging (no percentage — the frames contain counters only) | — |
 | Logitech Unifying / Bolt receivers (MX Keys, MX Master 3S, …) | receiver long channel, HID++ 2.0 (`0x1004` → `0x1000` → `0x1001`, name via `0x0005`) | exact percentage and the real device name | — verified with MX Keys and MX Master 3S next to Logi Options+ |
 | Older Logitech HID++ 1.0 devices | receiver registers `0x0D`/`0x07` | percentage, sometimes coarse (empty / low / medium / full) | verify on more models |
 | Bluetooth Classic headsets and speakers | classic pairing | not supported yet | research the battery source Windows Settings uses |

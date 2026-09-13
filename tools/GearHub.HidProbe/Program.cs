@@ -43,6 +43,43 @@ if (args.Contains("--live"))
     return;
 }
 
+if (args.Contains("--listen"))
+{
+    var listenSeconds = 120;
+
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i] == "--listen" && int.TryParse(args[i + 1], out var parsed) && parsed > 0)
+        {
+            listenSeconds = parsed;
+        }
+    }
+
+    Console.WriteLine($"=== Passive listen for {listenSeconds} s (all transports) ===");
+    var listenTransports = HidppTransport.FindAll();
+
+    foreach (var transport in listenTransports)
+    {
+        Console.WriteLine($"- {transport.ProductName} in={transport.MaxInputReportLength} out={transport.MaxOutputReportLength}");
+    }
+
+    var listenBuffer = new byte[128];
+    var listenUntil = DateTimeOffset.UtcNow.AddSeconds(listenSeconds);
+
+    while (DateTimeOffset.UtcNow < listenUntil)
+    {
+        foreach (var transport in listenTransports)
+        {
+            if (transport.TryReadRaw(listenBuffer, TimeSpan.FromMilliseconds(250), out var heard))
+            {
+                Console.WriteLine($"{DateTimeOffset.Now:HH:mm:ss.fff} {transport.ProductName} {Convert.ToHexString(heard)}");
+            }
+        }
+    }
+
+    return;
+}
+
 Console.WriteLine("=== HID++ interfaces (usage 0xFF00/0x0001) ===");
 var transports = HidppTransport.FindAll();
 

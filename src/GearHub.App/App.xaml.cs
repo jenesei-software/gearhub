@@ -49,6 +49,7 @@ public partial class App : Application
             new XInputGearProvider(),
             new LogitechHidppProvider(),
             new BleGattBatteryProvider(),
+            new BluetoothHfpBatteryProvider(),
         ];
 
         var service = new GearHubService(_providers, store, new DeviceFilter(), new StatusPolicy());

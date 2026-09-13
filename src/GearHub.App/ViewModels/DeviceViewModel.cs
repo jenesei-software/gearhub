@@ -74,7 +74,7 @@ public sealed partial class DeviceViewModel : ObservableObject
         var percent = battery.Percent ?? CoarsePercent(battery.Coarse);
         var text = percent is { } value ? $"{value}%" : "—";
 
-        return battery.IsCharging && battery.IsAvailable && percent is not null ? $"⚡ {text}" : text;
+        return battery is { IsCharging: true, IsAvailable: true } ? $"⚡ {text}" : text;
     }
 
     /// <summary>Maps the coarse level to percentages: "full" means 100%.</summary>

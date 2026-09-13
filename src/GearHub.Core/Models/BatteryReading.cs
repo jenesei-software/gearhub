@@ -22,5 +22,5 @@ public sealed record BatteryReading
 
     public bool IsCharging { get; init; }
 
-    public bool IsAvailable => Percent is not null || Coarse != CoarseBatteryLevel.Unknown;
+    public bool IsAvailable => Percent is not null || Coarse != CoarseBatteryLevel.Unknown || IsCharging;
 }
