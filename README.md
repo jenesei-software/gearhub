@@ -20,6 +20,10 @@ GearHub is free and open source. If it is useful to you:
 
 Ideas are worth as much as donations: found a bug or want your device supported — an [issue](https://github.com/jenesei-software/gearhub/issues) is the best kind of help.
 
+## License
+
+Released under the [MIT License](LICENSE).
+
 ## Features
 
 - **Xbox gamepads** (XInput): charge level (empty/low/medium/full) and power source (USB / AA batteries / rechargeable battery).
